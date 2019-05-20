@@ -27,10 +27,10 @@ class Sweep(object):
         self._sr830s = []
         self._params = []
     
-    def follow_param(self, p):
-        self._params.append(p)
+    def follow_param(self, p, gain=1.0):
+        self._params.append((p, gain))
 
-    def follow_sr830(self, l, name, gain=1.0):
+    def follow_sr830(self, l, name=None, gain=1.0):
         self._sr830s.append((l, name, gain))
 
     def _create_measurement(self, *set_params):
@@ -38,7 +38,7 @@ class Sweep(object):
         for p in set_params:
             meas.register_parameter(p)
         meas.register_custom_parameter('time', label='Time', unit='s')
-        for p in self._params:
+        for p, _ in self._params:
             meas.register_parameter(p, setpoints=(*set_params, 'time',))
         for l, _, _ in self._sr830s:
             meas.register_parameter(l.X, setpoints=(*set_params, 'time',))
@@ -60,7 +60,7 @@ class Sweep(object):
 
         paxs = []
         plines = []
-        for i, p in enumerate(self._params):
+        for i, (p, _) in enumerate(self._params):
             ax = fig.add_subplot(grid[:, 1 + i])
             ax.set_xlabel(f'{set_param.label} ({set_param.unit})')
             ax.set_ylabel(f'{p.label} ({p.unit})')
@@ -106,8 +106,9 @@ class Sweep(object):
                     (set_param, setpoint),
                     ('time', t)
                 ]
-                for i, p in enumerate(self._params):
+                for i, (p, gain) in enumerate(self._params):
                     v = p.get()
+                    v = v / gain
                     data.append((p, v))
                     plines[i].set_xdata(np.append(plines[i].get_xdata(), setpoint))
                     plines[i].set_ydata(np.append(plines[i].get_ydata(), v))
