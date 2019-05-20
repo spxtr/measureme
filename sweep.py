@@ -45,19 +45,26 @@ class Sweep(object):
             meas.register_parameter(l.Y, setpoints=(*set_params, 'time',))
         return meas
 
-    def _prepare_1d_plots(self, set_param):
-        self._fig = plt.figure(figsize=(4*(2 + len(self._params) + len(self._sr830s)),4))
-        grid = plt.GridSpec(4, 1 + len(self._params) + len(self._sr830s), hspace=0)
-        self._setax = self._fig.add_subplot(grid[:, 0])
-        self._setax.set_xlabel('Time (s)')
-        self._setax.set_ylabel(f'{set_param.label} ({set_param.unit})')
-        self._setaxline = self._setax.plot([], [])[0]
+    def _prepare_1d_plots(self, set_param=None):
+        if set_param is None:
+            self._setaxs = 0
+            set_lbl = 'Time (s)'
+        else:
+            self._setaxs = 1
+            set_lbl = f'{set_param.label} ({set_param.unit})'
+        self._fig = plt.figure(figsize=(4*(self._setaxs + 1 + len(self._params) + len(self._sr830s)),4))
+        grid = plt.GridSpec(4, self._setaxs + len(self._params) + len(self._sr830s), hspace=0)
+        if set_param is not None:
+            self._setax = self._fig.add_subplot(grid[:, 0])
+            self._setax.set_xlabel('Time (s)')
+            self._setax.set_ylabel(set_lbl)
+            self._setaxline = self._setax.plot([], [])[0]
 
         self._paxs = []
         self._plines = []
         for i, (p, _) in enumerate(self._params):
-            ax = self._fig.add_subplot(grid[:, 1 + i])
-            ax.set_xlabel(f'{set_param.label} ({set_param.unit})')
+            ax = self._fig.add_subplot(grid[:, self._setaxs + i])
+            ax.set_xlabel(set_lbl)
             ax.set_ylabel(f'{p.label} ({p.unit})')
             self._paxs.append(ax)
             self._plines.append(ax.plot([], [])[0])
@@ -65,16 +72,16 @@ class Sweep(object):
         self._laxs = []
         self._llines = []
         for i, (l, name, _) in enumerate(self._sr830s):
-            ax0 = self._fig.add_subplot(grid[:-1, 1 + len(self._params) + i])
+            ax0 = self._fig.add_subplot(grid[:-1, self._setaxs + len(self._params) + i])
             ax0.set_ylabel(f'{name} (V)')
             fmt = ScalarFormatter()
             fmt.set_powerlimits((-3, 3))
             ax0.get_yaxis().set_major_formatter(fmt)
             self._laxs.append(ax0)
             self._llines.append(ax0.plot([], [])[0])
-            ax1 = self._fig.add_subplot(grid[-1, 1 + len(self._params) + i], sharex=ax0)
+            ax1 = self._fig.add_subplot(grid[-1, self._setaxs + len(self._params) + i], sharex=ax0)
             ax1.set_ylabel('Phase (°)')
-            ax1.set_xlabel(f'{set_param.label} ({set_param.unit})')
+            ax1.set_xlabel(set_lbl)
             self._laxs.append(ax1)
             self._llines.append(ax1.plot([], [])[0])
             plt.setp(ax0.get_xticklabels(), visible=False)
@@ -83,6 +90,8 @@ class Sweep(object):
         self._fig.show()
 
     def _update_1d_setax(self, setpoint, t):
+        if self._setaxs == 0:
+            return
         self._setaxline.set_xdata(np.append(self._setaxline.get_xdata(), t))
         self._setaxline.set_ydata(np.append(self._setaxline.get_ydata(), setpoint))
         self._setax.relim()
@@ -121,40 +130,137 @@ class Sweep(object):
             print(f'Minimum duration: {h}h {m}m {s}s')
 
         self._prepare_1d_plots(set_param)
-        meas = self._create_measurement(set_param)
-        with meas.run() as datasaver:
-            t0 = time.monotonic()
-            for setpoint in vals:
+        try:
+            meas = self._create_measurement(set_param)
+            with meas.run() as datasaver:
+                t0 = time.monotonic()
+                for setpoint in vals:
+                    t = time.monotonic() - t0
+                    set_param.set(setpoint)
+                    self._update_1d_setax(setpoint, t)
+
+                    if inter_delay is not None:
+                        plt.pause(inter_delay)
+
+                    data = [
+                        (set_param, setpoint),
+                        ('time', t)
+                    ]
+                    for i, (p, gain) in enumerate(self._params):
+                        v = p.get()
+                        v = v / gain
+                        data.append((p, v))
+                        self._update_1d_param(i, setpoint, v)
+
+                    for i, (l, _, gain) in enumerate(self._sr830s):
+                        _autorange_srs(l, 3)
+                        x, y = l.snap('x', 'y')
+                        x, y = x / gain, y / gain
+                        data.extend([(l.X, x), (l.Y, y)])
+                        self._update_1d_sr830(i, setpoint, x, y)
+
+                    datasaver.add_result(*data)
+                    
+                    self._redraw_1d_plot()
+        except KeyboardInterrupt:
+            print('Interrupted.')
+
+        d = time.monotonic() - t0
+        h, m, s = int(d/3600), int(d/60) % 60, int(d) % 60
+        print(f'Completed in: {h}h {m}m {s}s')
+
+        self._display_1d_plot()
+        plt.close(self._fig)
+
+    def watch(self, max_duration=None, inter_delay=None):
+        self._prepare_1d_plots()
+        try:
+            meas = self._create_measurement()
+            with meas.run() as datasaver:
+                t0 = time.monotonic()
                 t = time.monotonic() - t0
-                set_param.set(setpoint)
-                self._update_1d_setax(setpoint, t)
+                while max_duration is None or t < max_duration:
+                    t = time.monotonic() - t0
 
-                if inter_delay is not None:
-                    plt.pause(inter_delay)
+                    if inter_delay is not None:
+                        plt.pause(inter_delay)
 
-                data = [
-                    (set_param, setpoint),
-                    ('time', t)
-                ]
-                for i, (p, gain) in enumerate(self._params):
-                    v = p.get()
-                    v = v / gain
-                    data.append((p, v))
-                    self._update_1d_param(i, setpoint, v)
+                    data = [('time', t)]
 
-                for i, (l, _, gain) in enumerate(self._sr830s):
-                    _autorange_srs(l, 3)
-                    x, y = l.snap('x', 'y')
-                    x, y = x / gain, y / gain
-                    data.extend([(l.X, x), (l.Y, y)])
-                    self._update_1d_sr830(i, setpoint, x, y)
+                    for i, (p, gain) in enumerate(self._params):
+                        v = p.get()
+                        v = v / gain
+                        data.append((p, v))
+                        self._update_1d_param(i, t, v)
 
-                datasaver.add_result(*data)
-                
-                self._redraw_1d_plot()
+                    for i, (l, _, gain) in enumerate(self._sr830s):
+                        _autorange_srs(l, 3)
+                        x, y = l.snap('x', 'y')
+                        x, y = x / gain, y / gain
+                        data.extend([(l.X, x), (l.Y, y)])
+                        self._update_1d_sr830(i, t, x, y)
 
-            d = time.monotonic() - t0
+                    datasaver.add_result(*data)
+                    
+                    self._redraw_1d_plot()
+        except KeyboardInterrupt:
+            print('Interrupted.')
+
+        d = time.monotonic() - t0
+        h, m, s = int(d/3600), int(d/60) % 60, int(d) % 60
+        print(f'Completed in: {h}h {m}m {s}s')
+
+        self._display_1d_plot()
+        plt.close(self._fig)
+
+    def megasweep(self, s_fast, v_fast, s_slow, v_slow, inter_delay=None):
+        if inter_delay is not None:
+            d = len(v_fast)*len(v_slow)*inter_delay
             h, m, s = int(d/3600), int(d/60) % 60, int(d) % 60
-            print(f'Completed in: {h}h {m}m {s}s')
+            print(f'Minimum duration: {h}h {m}m {s}s')
 
-            self._display_1d_plot()
+        t0 = time.monotonic()
+        meas = self._create_measurement(s_fast, s_slow)
+        try:
+            with meas.run() as datasaver:
+                for sp_slow in v_slow:
+                    s_slow.set(sp_slow)
+
+                    self._prepare_1d_plots(s_fast)
+                    for sp_fast in v_fast:
+                        t = time.monotonic() - t0
+                        s_fast.set(sp_fast)
+                        self._update_1d_setax(sp_fast, t)
+
+                        if inter_delay is not None:
+                            plt.pause(inter_delay)
+
+                        data = [
+                            (s_slow, sp_slow),
+                            (s_fast, sp_fast),
+                            ('time', t)
+                        ]
+                        for i, (p, gain) in enumerate(self._params):
+                            v = p.get()
+                            v = v / gain
+                            data.append((p, v))
+                            self._update_1d_param(i, sp_fast, v)
+
+                        for i, (l, _, gain) in enumerate(self._sr830s):
+                            _autorange_srs(l, 3)
+                            x, y = l.snap('x', 'y')
+                            x, y = x / gain, y / gain
+                            data.extend([(l.X, x), (l.Y, y)])
+                            self._update_1d_sr830(i, sp_fast, x, y)
+
+                        datasaver.add_result(*data)
+                        
+                        self._redraw_1d_plot()
+                    self._display_1d_plot()
+                    plt.close(self._fig)
+        except KeyboardInterrupt:
+            print('Interrupted.')
+            plt.close(self._fig)
+        d = time.monotonic() - t0
+        h, m, s = int(d/3600), int(d/60) % 60, int(d) % 60
+        print(f'Completed in: {h}h {m}m {s}s')
