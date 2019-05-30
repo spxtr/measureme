@@ -26,12 +26,18 @@ class Sweep(object):
     def __init__(self):
         self._sr830s = []
         self._params = []
+        self._fbl = None
+        self._fbl_channels = []
     
     def follow_param(self, p, gain=1.0):
         self._params.append((p, gain))
 
     def follow_sr830(self, l, name=None, gain=1.0):
         self._sr830s.append((l, name, gain))
+        
+    def follow_fbl(self, fbl, channels):
+        self._fbl = fbl
+        self._fbl_channels = channels
 
     def _create_measurement(self, *set_params):
         meas = Measurement()
@@ -43,6 +49,9 @@ class Sweep(object):
         for l, _, _ in self._sr830s:
             meas.register_parameter(l.X, setpoints=(*set_params, 'time',))
             meas.register_parameter(l.Y, setpoints=(*set_params, 'time',))
+        for c in self._fbl_channels:
+            meas.register_custom_parameter(f'fbl_c{c}_r', label=f'FBL Channel {c} Amplitude', unit='V')
+            meas.register_custom_parameter(f'fbl_c{c}_p', label=f'FBL Channel {c} Phase', unit='deg')
         return meas
 
     def _prepare_1d_plots(self, set_param=None):
@@ -52,8 +61,8 @@ class Sweep(object):
         else:
             self._setaxs = 1
             set_lbl = f'{set_param.label} ({set_param.unit})'
-        self._fig = plt.figure(figsize=(4*(self._setaxs + 1 + len(self._params) + len(self._sr830s)),4))
-        grid = plt.GridSpec(4, self._setaxs + len(self._params) + len(self._sr830s), hspace=0)
+        self._fig = plt.figure(figsize=(4*(self._setaxs + 1 + len(self._params) + len(self._sr830s) + len(self._fbl_channels)),4))
+        grid = plt.GridSpec(4, self._setaxs + len(self._params) + len(self._sr830s) + len(self._fbl_channels), hspace=0)
         if set_param is not None:
             self._setax = self._fig.add_subplot(grid[:, 0])
             self._setax.set_xlabel('Time (s)')
@@ -85,6 +94,23 @@ class Sweep(object):
             self._laxs.append(ax1)
             self._llines.append(ax1.plot([], [])[0])
             plt.setp(ax0.get_xticklabels(), visible=False)
+            
+        self._fblaxs = []
+        self._fbllines = []
+        for i, l in enumerate(self._fbl_channels):
+            ax0 = self._fig.add_subplot(grid[:-1, self._setaxs + len(self._params) + i + len(self._sr830s)])
+            ax0.set_ylabel(f'FBL Channel {l} (V)')
+            fmt = ScalarFormatter()
+            fmt.set_powerlimits((-3, 3))
+            ax0.get_yaxis().set_major_formatter(fmt)
+            self._fblaxs.append(ax0)
+            self._fbllines.append(ax0.plot([], [])[0])
+            ax1 = self._fig.add_subplot(grid[-1, self._setaxs + len(self._params) + i + len(self._sr830s)], sharex=ax0)
+            ax1.set_ylabel('Phase (°)')
+            ax1.set_xlabel(set_lbl)
+            self._fblaxs.append(ax1)
+            self._fbllines.append(ax1.plot([], [])[0])
+            plt.setp(ax0.get_xticklabels(), visible=False)
 
         self._fig.tight_layout()
         self._fig.show()
@@ -112,6 +138,16 @@ class Sweep(object):
         self._laxs[i*2].autoscale_view()
         self._laxs[i*2+1].relim()
         self._laxs[i*2+1].autoscale_view()
+        
+    def _update_1d_fbls(self, i, setpoint, r, theta):
+        self._fbllines[i*2].set_xdata(np.append(self._fbllines[i*2].get_xdata(), setpoint))
+        self._fbllines[i*2].set_ydata(np.append(self._fbllines[i*2].get_ydata(), r))
+        self._fbllines[i*2+1].set_xdata(np.append(self._fbllines[i*2+1].get_xdata(), setpoint))
+        self._fbllines[i*2+1].set_ydata(np.append(self._fbllines[i*2+1].get_ydata(), theta))
+        self._fblaxs[i*2].relim()
+        self._fblaxs[i*2].autoscale_view()
+        self._fblaxs[i*2+1].relim()
+        self._fblaxs[i*2+1].autoscale_view()
 
     def _redraw_1d_plot(self):
         self._fig.tight_layout()
@@ -158,7 +194,12 @@ class Sweep(object):
                         x, y = x / gain, y / gain
                         data.extend([(l.X, x), (l.Y, y)])
                         self._update_1d_sr830(i, setpoint, x, y)
-
+                    
+                    if self._fbl is not None:
+                        d = self._fbl.get_v_in(self._fbl_channels)
+                        for i, (c, (r, theta)) in enumerate(zip(self._fbl_channels, d)):
+                            data.extend([(f'fbl_c{c}_r', r), (f'fbl_c{c}_p', theta)])
+                            self._update_1d_fbls(i, setpoint, r, theta)
                     datasaver.add_result(*data)
                     
                     self._redraw_1d_plot()
@@ -199,6 +240,12 @@ class Sweep(object):
                         x, y = x / gain, y / gain
                         data.extend([(l.X, x), (l.Y, y)])
                         self._update_1d_sr830(i, t, x, y)
+                        
+                    if self._fbl is not None:
+                        d = self._fbl.get_v_in(self._fbl_channels)
+                        for i, (c, (r, theta)) in enumerate(zip(self._fbl_channels, d)):
+                            data.extend([(f'fbl_c{c}_r', r), (f'fbl_c{c}_p', theta)])
+                            self._update_1d_fbls(i, t, r, theta)
 
                     datasaver.add_result(*data)
                     
