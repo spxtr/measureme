@@ -7,6 +7,7 @@ from matplotlib.ticker import ScalarFormatter
 import qcodes as qc
 from qcodes.dataset.measurements import Measurement
 from IPython import display
+from qcodes.instrument_drivers.stanford_research.SR830 import SR830
 
 def _autorange_srs(srs, max_changes=1):
     def autorange_once():
@@ -182,6 +183,13 @@ class Sweep(object):
                         (set_param, setpoint),
                         ('time', t)
                     ]
+
+                    if self._fbl is not None:
+                        d = self._fbl.get_v_in(self._fbl_channels)
+                        for i, (c, (r, theta)) in enumerate(zip(self._fbl_channels, d)):
+                            data.extend([(f'fbl_c{c}_r', r), (f'fbl_c{c}_p', theta)])
+                            self._update_1d_fbls(i, setpoint, r, theta)					
+					
                     for i, (p, gain) in enumerate(self._params):
                         v = p.get()
                         v = v / gain
@@ -194,12 +202,7 @@ class Sweep(object):
                         x, y = x / gain, y / gain
                         data.extend([(l.X, x), (l.Y, y)])
                         self._update_1d_sr830(i, setpoint, x, y)
-                    
-                    if self._fbl is not None:
-                        d = self._fbl.get_v_in(self._fbl_channels)
-                        for i, (c, (r, theta)) in enumerate(zip(self._fbl_channels, d)):
-                            data.extend([(f'fbl_c{c}_r', r), (f'fbl_c{c}_p', theta)])
-                            self._update_1d_fbls(i, setpoint, r, theta)
+
                     datasaver.add_result(*data)
                     
                     self._redraw_1d_plot()
@@ -311,3 +314,19 @@ class Sweep(object):
         d = time.monotonic() - t0
         h, m, s = int(d/3600), int(d/60) % 60, int(d) % 60
         print(f'Completed in: {h}h {m}m {s}s')
+		
+		
+def sweep1d(instr, start, end, step, delay, params):
+    #example: sweep1D(Vg,0,1,0.1,0.5,[srs1,srs2,[FBL,0,1,2,10,11]])		
+	s = Sweep()
+    for p in params:
+        if isinstance(p, SR830):
+            s.follow_sr830(p,p.name)
+        elif p is list and p[0].name ==' FBL':
+            # need to do better in the future
+            channels = p[1:]
+            s.follow_fbl(channels)
+        else:
+            s.follow_param(p)
+    s.sweep(instr, np.arange(start, end, step), inter_delay=delay)
+    
