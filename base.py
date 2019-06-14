@@ -1,4 +1,5 @@
 """
+Taken from QCoDeS.
 Live plotting in Jupyter notebooks
 """
 

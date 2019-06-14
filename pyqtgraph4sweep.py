@@ -1,4 +1,5 @@
 """
+Taken from QCoDeS.
 Live plotting using pyqtgraph
 """
 from typing import Optional, Dict, Union, Deque, List, cast
