@@ -314,11 +314,11 @@ class Sweep(object):
         d = time.monotonic() - t0
         h, m, s = int(d/3600), int(d/60) % 60, int(d) % 60
         print(f'Completed in: {h}h {m}m {s}s')
-		
-		
+
+
 def sweep1d(instr, start, end, step, delay, params):
     #example: sweep1D(Vg,0,1,0.1,0.5,[srs1,srs2,[FBL,0,1,2,10,11]])		
-	s = Sweep()
+    s = Sweep()
     for p in params:
         if isinstance(p, SR830):
             s.follow_sr830(p,p.name)
@@ -329,4 +329,3 @@ def sweep1d(instr, start, end, step, delay, params):
         else:
             s.follow_param(p)
     s.sweep(instr, np.arange(start, end, step), inter_delay=delay)
-    
