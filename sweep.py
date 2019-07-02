@@ -29,6 +29,7 @@ class Sweep(object):
         self._params = []
         self._fbl = None
         self._fbl_channels = []
+        self._fbl_gains = None
     
     def follow_param(self, p, gain=1.0):
         self._params.append((p, gain))
@@ -36,9 +37,10 @@ class Sweep(object):
     def follow_sr830(self, l, name=None, gain=1.0):
         self._sr830s.append((l, name, gain))
         
-    def follow_fbl(self, fbl, channels):
+    def follow_fbl(self, fbl, channels, gains=None):
         self._fbl = fbl
         self._fbl_channels = channels
+        self._fbl_gains = gains
 
     def _create_measurement(self, *set_params):
         meas = Measurement()
@@ -187,6 +189,8 @@ class Sweep(object):
                     if self._fbl is not None:
                         d = self._fbl.get_v_in(self._fbl_channels)
                         for i, (c, (r, theta)) in enumerate(zip(self._fbl_channels, d)):
+                            if self._fbl_gains is not None:
+                                r = r / self._fbl_gains[i]
                             data.extend([(f'fbl_c{c}_r', r), (f'fbl_c{c}_p', theta)])
                             self._update_1d_fbls(i, setpoint, r, theta)					
 					
@@ -247,6 +251,8 @@ class Sweep(object):
                     if self._fbl is not None:
                         d = self._fbl.get_v_in(self._fbl_channels)
                         for i, (c, (r, theta)) in enumerate(zip(self._fbl_channels, d)):
+                            if self._fbl_gains is not None:
+                                r = r / self._fbl_gains[i]
                             data.extend([(f'fbl_c{c}_r', r), (f'fbl_c{c}_p', theta)])
                             self._update_1d_fbls(i, t, r, theta)
 
