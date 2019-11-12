@@ -38,13 +38,15 @@ class _Plotter:
     
     def start(self, plots):
         self._plots = plots
-        self._fig = plt.figure(figsize=(4 * len(plots), 4))
-        grid = plt.GridSpec(1, len(plots))
+        rows = math.ceil(len(plots) / 4)
+        cols = len(plots) % 4 if len(plots) < 4 else 4
+        self._fig = plt.figure(figsize=(4 * cols, 4 * rows))
+        grid = plt.GridSpec(rows, cols)
         self._lines = []
         self._axs = []
         for i, (xs, ys, zs) in enumerate(plots):
             if len(zs) == 0:
-                ax = self._fig.add_subplot(grid[:,i])
+                ax = self._fig.add_subplot(grid[i // 4, i % 4])
                 ax.set_xlabel(xs[0])
                 for y in ys:
                     self._lines.append((xs[0], y, ax.plot([], [], label=y)[0]))
