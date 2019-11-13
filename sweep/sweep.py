@@ -1,5 +1,3 @@
-# TODO(spxtr): Proper plot labels with units.
-# TODO(spxtr): 2D plotting.
 import io
 import time
 import collections
@@ -181,6 +179,8 @@ class Sweep:
         return self
     
     def follow_fbl(self, channels, host='localhost', port=10000, gains=None):
+        if self._fbl is not None:
+            raise Exception('cannot follow_fbl twice, please do it in one call')
         if gains is None:
             gains = np.ones(len(channels))
         elif len(gains) != len(channels):
