@@ -228,7 +228,7 @@ class Sweep:
             meas.register_parameter(sr830.sr830.Y, setpoints=(*set_params, self._etp))
         if self._fbl is not None:
             for c in self._fbl.channels:
-                meas.register_custom_parameter(f'fbl_c{c}_r', setpoints=(*set_params, self._etp))
+                meas.register_custom_parameter(f'fbl_c{c}_x', setpoints=(*set_params, self._etp))
                 meas.register_custom_parameter(f'fbl_c{c}_p', setpoints=(*set_params, self._etp))
                 meas.register_custom_parameter(f'fbl_c{c}_o', setpoints=(*set_params, self._etp))
                 meas.register_custom_parameter(f'fbl_c{c}_s', setpoints=(*set_params, self._etp))
@@ -255,10 +255,10 @@ class Sweep:
         arr = np.frombuffer(recv, dtype=np.float64).reshape(32, 4, order='F')
         data = []
         for c, g in zip(self._fbl.channels, self._fbl.gains):
-            data.append((f'fbl_c{c}_o', arr[c,0] / g))
-            data.append((f'fbl_c{c}_s', arr[c,1] / g))
-            data.append((f'fbl_c{c}_r', arr[c,2] / g))
-            data.append((f'fbl_c{c}_p', arr[c,3] / g))
+            data.append((f'fbl_c{c}_o', arr[c,0]))
+            data.append((f'fbl_c{c}_s', arr[c,1]))
+            data.append((f'fbl_c{c}_x', arr[c,2] / g))
+            data.append((f'fbl_c{c}_p', arr[c,3]))
         return data
     
     def _measure_inputs(self):
