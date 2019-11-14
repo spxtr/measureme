@@ -163,6 +163,7 @@ class Sweep:
         self._fns = []
         self._etp = None
         self._plots = []
+        self._stop_when_fn = None
      
     def follow_param(self, param, gain=1.0):
         """Follow a qcodes Parameter."""
@@ -198,6 +199,12 @@ class Sweep:
         """
         self._fns.append(_Fn(fn, gain, name, unit))
         return self
+
+    def stop_when(self, fn):
+        if self._stop_when_fn is not None:
+            # TODO: Is this necessary? Can OR them all I suppose, if that's clear behavior.
+            raise Exception('cannot add two stop_when functions, just combine them into one')
+        self._stop_when_fn = fn
      
     def _autorange_sr830(self, sr830, max_changes=3):
         def autorange_once():
@@ -286,6 +293,12 @@ class Sweep:
         for fn in self._fns:
             fn_data.append([fn.name, fn.fn(fn_input) / fn.gain])
         return fn_data
+
+    def _should_stop(self, data):
+        if self._stop_when_fn is None:
+            return False
+        fn_input = self._format_data_map(data)
+        return self._stop_when_fn(fn_input)
     
     def _send_plot_data(self, data):
         self._plot_conn.send({
@@ -330,6 +343,7 @@ class Sweep:
                 data.extend(self._call_fns(data))
                 datasaver.add_result(*data)
                 self._send_plot_data(data)
+                if self._should_stop(data): break
             self.dataset = datasaver.dataset
  
     @_with_live_plotting
@@ -345,6 +359,7 @@ class Sweep:
                 data.extend(self._call_fns(data))
                 datasaver.add_result(*data)
                 self._send_plot_data(data)
+                if self._should_stop(data): break
             self.dataset = datasaver.dataset
 
     @_with_live_plotting
@@ -354,6 +369,7 @@ class Sweep:
         print(f'Minimum duration: {_sec_to_str(len(slow_v)*len(fast_v)*fast_delay + len(slow_v)*slow_delay)}')
         meas = self._create_measurement(slow_p, fast_p)
         with meas.run() as datasaver:
+            should_stop = False
             for ov in slow_v:
                 slow_p.set(ov)
                 time.sleep(slow_delay)
@@ -365,4 +381,6 @@ class Sweep:
                     data.extend(self._call_fns(data))
                     datasaver.add_result(*data)
                     self._send_plot_data(data)
+                    if self._should_stop(data): should_stop = True
+                if should_stop: break
             self.dataset = datasaver.dataset
