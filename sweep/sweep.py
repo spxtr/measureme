@@ -61,6 +61,10 @@ class _Plotter:
     def add_points(self, points):
         for point in points:
             for x, y, line in self._lines:
+                if x not in point or y not in point:
+                    # Can consider issuing a warning here, however this is not
+                    # always a bug. Sometimes we skip points purposefully.
+                    continue
                 line.set_xdata(np.append(line.get_xdata(), point[x]))
                 line.set_ydata(np.append(line.get_ydata(), point[y]))
         for ax in self._axs:
@@ -99,7 +103,7 @@ def _plot_loop(conn):
         if quit:
             p.stop()
             return
-        plt.pause(0.1)
+        plt.pause(0.001)
             
             
 def _with_live_plotting(func):
