@@ -3,6 +3,7 @@ import time
 import collections
 import math
 import socket
+import sys
 import functools
 import multiprocessing
 
@@ -17,6 +18,7 @@ import qcodes as qc
 from qcodes.dataset.measurements import Measurement
 from qcodes.instrument_drivers.stanford_research.SR830 import SR830
 from qcodes.instrument.specialized_parameters import ElapsedTimeParameter
+import tqdm
 
 
 def _sec_to_str(d):
@@ -109,8 +111,9 @@ def _plot_loop(conn):
 def _with_live_plotting(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        parent_pipe, child_pipe = multiprocessing.Pipe()
-        proc = multiprocessing.Process(target=_plot_loop, args=(child_pipe,))
+        ctx = multiprocessing.get_context('spawn')
+        parent_pipe, child_pipe = ctx.Pipe()
+        proc = ctx.Process(target=_plot_loop, args=(child_pipe,))
         proc.start()
         args[0]._plot_conn = parent_pipe
         parent_pipe.send({
@@ -339,7 +342,7 @@ class Sweep:
         print(f'Minimum duration: {_sec_to_str(len(vals) * inter_delay)}')
         meas = self._create_measurement(set_param)
         with meas.run() as datasaver:
-            for setpoint in vals:
+            for setpoint in tqdm.tqdm(vals, file=sys.stdout):
                 set_param.set(setpoint)
                 time.sleep(inter_delay)
                 data = [(set_param, setpoint)]
@@ -374,17 +377,19 @@ class Sweep:
         meas = self._create_measurement(slow_p, fast_p)
         with meas.run() as datasaver:
             should_stop = False
-            for ov in slow_v:
-                slow_p.set(ov)
-                time.sleep(slow_delay)
-                for iv in fast_v:
-                    fast_p.set(iv)
-                    time.sleep(fast_delay)
-                    data = [(slow_p, ov), (fast_p, iv)]
-                    data.extend(self._measure_inputs())
-                    data.extend(self._call_fns(data))
-                    datasaver.add_result(*data)
-                    self._send_plot_data(data)
-                    if self._should_stop(data): should_stop = True
-                if should_stop: break
+            with tqdm.tqdm(total=len(slow_v)*len(fast_v), file=sys.stdout) as pbar:
+                for ov in slow_v:
+                    slow_p.set(ov)
+                    time.sleep(slow_delay)
+                    for iv in fast_v:
+                        fast_p.set(iv)
+                        time.sleep(fast_delay)
+                        data = [(slow_p, ov), (fast_p, iv)]
+                        data.extend(self._measure_inputs())
+                        data.extend(self._call_fns(data))
+                        datasaver.add_result(*data)
+                        pbar.update(1)
+                        self._send_plot_data(data)
+                        if self._should_stop(data): should_stop = True
+                    if should_stop: break
             self.dataset = datasaver.dataset
