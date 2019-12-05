@@ -4,21 +4,42 @@ import collections
 import math
 import socket
 import sys
+import os
 import functools
 import multiprocessing
+import inspect
 
 import numpy as np
 import scipy
 from scipy.interpolate import griddata
+
 import matplotlib
 matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
+plt.rcParams['toolbar'] = 'toolmanager'
+from matplotlib.backend_tools import ToolBase
 from IPython import display
+
 import qcodes as qc
 from qcodes.dataset.measurements import Measurement
 from qcodes.instrument_drivers.stanford_research.SR830 import SR830
 from qcodes.instrument.specialized_parameters import ElapsedTimeParameter
-import tqdm
+
+from tqdm import tqdm
+
+
+class StopSweep(ToolBase):
+    description = 'Stop sweep'
+    image = os.path.join(os.path.dirname(inspect.getfile(inspect.currentframe())), 'stop_hand.png')
+    _conn = None
+
+    def trigger(self, *args, **kwargs):
+        if self._conn is None:
+            return
+        self._conn.send({'action': 'stop'})
+
+    def set_conn(self, conn):
+        self._conn = conn
 
 
 def _sec_to_str(d):
@@ -33,14 +54,19 @@ _Fn    = collections.namedtuple('_Fn',    ['fn', 'gain', 'name', 'unit'])
 
 
 class _Plotter:
-    def __init__(self):
-        pass
+    def __init__(self, conn):
+        self._conn = conn
     
     def start(self, plots):
         self._plots = plots
         rows = math.ceil(len(plots) / 4)
         cols = len(plots) % 4 if len(plots) < 4 else 4
         self._fig = plt.figure(figsize=(4 * cols, 4 * rows))
+        man = self._fig.canvas.manager
+        man.toolmanager.add_tool('stopsweep', StopSweep)
+        stopsweep = man.toolmanager.get_tool('stopsweep')
+        stopsweep.set_conn(self._conn)
+        man.toolbar.add_tool(stopsweep, 'toolgroup')
         grid = plt.GridSpec(rows, cols)
         self._lines = []
         self._axs = []
@@ -81,7 +107,7 @@ class _Plotter:
         return b
 
 def _plot_loop(conn):
-    p = _Plotter()
+    p = _Plotter(conn)
     quit = False
     while not quit:
         messages = []
@@ -302,6 +328,15 @@ class Sweep:
         return fn_data
 
     def _should_stop(self, data):
+        # TODO: If we want to add more communication stuff then this needs
+        # to be in an actual event loop. As-is, double-tapping may(?) race with
+        # sending the image over for display.
+        messages = []
+        while self._plot_conn.poll():
+            messages.append(self._plot_conn.recv())
+        for m in messages:
+            if m['action'] == 'stop':
+                return True
         if self._stop_when_fn is None:
             return False
         fn_input = self._format_data_map(data)
@@ -342,7 +377,7 @@ class Sweep:
         print(f'Minimum duration: {_sec_to_str(len(vals) * inter_delay)}')
         meas = self._create_measurement(set_param)
         with meas.run() as datasaver:
-            for setpoint in tqdm.tqdm(vals, file=sys.stdout):
+            for setpoint in tqdm(vals, file=sys.stdout):
                 set_param.set(setpoint)
                 time.sleep(inter_delay)
                 data = [(set_param, setpoint)]
@@ -377,7 +412,7 @@ class Sweep:
         meas = self._create_measurement(slow_p, fast_p)
         with meas.run() as datasaver:
             should_stop = False
-            with tqdm.tqdm(total=len(slow_v)*len(fast_v), file=sys.stdout) as pbar:
+            with tqdm_notebook(total=len(slow_v)*len(fast_v), file=sys.stdout) as pbar:
                 for ov in slow_v:
                     slow_p.set(ov)
                     time.sleep(slow_delay)
