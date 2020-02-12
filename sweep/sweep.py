@@ -25,7 +25,26 @@ from qcodes.dataset.measurements import Measurement
 from qcodes.instrument_drivers.stanford_research.SR830 import SR830
 from qcodes.instrument.specialized_parameters import ElapsedTimeParameter
 
-import tqdm.notebook as tqdm
+
+def srange(xs, step):
+    """ Construct a flat numpy array between the points in xs with stepsize step.
+    
+    Example:
+    srange([0, 10, 5], 2) -> [0, 2, 4, 6, 8, 10, 10, 8, 6, 5]
+    
+    The values for an individual section are clamped to that section's limits.
+    srange([0, 10], 3) -> [0, 3, 6, 9, 10]
+    """
+    if len(xs) < 2:
+        raise ValueError('needs more than one setpoint')
+    if step <= 0:
+        raise ValueError('needs positive step')
+    ret = np.array([])
+    for start, stop in zip(xs, xs[1:]):
+        sign = np.sign(stop - start)
+        section = np.clip(np.arange(start, stop + step*sign, step*sign), min(start, stop), max(start, stop))
+        ret = np.hstack((ret, section))
+    return ret
 
 
 class StopSweep(ToolBase):
