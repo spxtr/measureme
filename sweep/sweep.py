@@ -68,7 +68,7 @@ def _sec_to_str(d):
 
 _Param = collections.namedtuple('_Param', ['param', 'gain'])
 _SR830 = collections.namedtuple('_SR830', ['sr830', 'gain', 'autorange'])
-_FBL   = collections.namedtuple('_FBL',   ['host', 'port', 'channels', 'gains', 'outputs', 'setpoints'])
+_FBL   = collections.namedtuple('_FBL',   ['host', 'port', 'channels', 'gains', 'outputs', 'setpoints', 'dc'])
 _Fn    = collections.namedtuple('_Fn',    ['fn', 'gain', 'name', 'unit'])
 
 
@@ -232,14 +232,14 @@ class Sweep:
         self._sr830s.append(_SR830(sr830, gain, autorange))
         return self
     
-    def follow_fbl(self, channels, host='localhost', port=10000, gains=None, outputs=False, setpoints=False):
+    def follow_fbl(self, channels, host='localhost', port=10000, gains=None, outputs=False, setpoints=False, dc=False):
         if self._fbl is not None:
             raise Exception('cannot follow_fbl twice, please do it in one call')
         if gains is None:
             gains = np.ones(len(channels))
         elif len(gains) != len(channels):
             raise ValueError(f'different number of gains ({len(gains)}) and channels ({len(channels)})')
-        self._fbl = _FBL(host, port, channels, gains, outputs, setpoints)
+        self._fbl = _FBL(host, port, channels, gains, outputs, setpoints, dc)
         return self
             
  
@@ -294,6 +294,8 @@ class Sweep:
                     meas.register_custom_parameter(f'fbl_c{c}_o', setpoints=(*set_params, self._etp))
                 if self._fbl.setpoints:
                     meas.register_custom_parameter(f'fbl_c{c}_s', setpoints=(*set_params, self._etp))
+                if self._fbl.dc:
+                    meas.register_custom_parameter(f'fbl_c{c}_dc', setpoints=(*set_params, self._etp))
         for fn in self._fns:
             meas.register_custom_parameter(fn.name, setpoints=(*set_params, self._etp))
         return meas
@@ -323,6 +325,8 @@ class Sweep:
                 data.append((f'fbl_c{c}_s', arr[c,1]))
             data.append((f'fbl_c{c}_x', arr[c,2] / g))
             data.append((f'fbl_c{c}_p', arr[c,3]))
+            if self._fbl.dc:
+                data.append((f'fbl_c{c}_dc', arr[c,4]))
         return data
     
     def _measure_inputs(self):
