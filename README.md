@@ -41,10 +41,9 @@ s.follow_parameter(dmm.idc)
 s.follow_parameter(dmm.ig)
 ```
 
-These `follow_parameter` calls can be shortened to `fp` and also chained, so
-the above lines can become `s.fp(dmm.idc).fp(dmm.ig)`. There is an optional
-gain parameter that will be divided out of all measurements, so if `dmm.ig` is
-passing through a 100x amplifier, use `s.follow_param(dmm.ig, gain=100)`.
+There is an optional gain parameter that will be divided out of all
+measurements, so if `dmm.ig` is passing through a 100x amplifier, use
+`s.follow_param(dmm.ig, gain=100)`.
 
 We can take a single measurement (a 0D sweep) with `s.measure()`.
 
@@ -58,9 +57,18 @@ CSV, which can be natively read by `numpy` with either `np.loadtxt` or
 `np.genfromtxt`. The column names are stored in `result.metadata['columns']`,
 and the metadata dictionary is also saved in the same folder as the data.
 
+If you wish to measure repeatedly over time, use `s.watch`. You'll want to pass
+in a delay between measurements, as well as a maximum duration (no limit if not
+specified). Press the stop button in Jupyter (or hit ctrl-c in a terminal) to
+interrupt the watch. All times are in seconds.
+
+```python
+result = s.watch(delay=1, max_duration=3600)
+```
+
 A 1D sweep is slightly more complicated. You'll need to call `s.sweep` with
 the parameter to be swept, a list of setpoints, and an optional delay per
-point (in seconds).
+point.
 
 ```python
 result = s.sweep(dac.ch1, [0, 0.1, 0.2, 0.3], delay=1)

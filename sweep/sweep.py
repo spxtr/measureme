@@ -1,4 +1,5 @@
 import dataclasses
+import functools
 import os
 import signal
 import time
@@ -26,6 +27,22 @@ class SweepResult:
     id:       int
     metadata: Dict
     datapath: str
+
+
+def _interruptible(func):
+    # We don't want to allow interrupts while communicating with
+    # instruments. This checks for interrupts after measuring.
+    # TODO: Allow interrupting the time.sleep() somehow, and potentially
+    #       also the param(setpoint) if possible.
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        args[0].interrupt_requested = False
+        def handler(signum, frame):
+            args[0].interrupt_requested = True
+        old_handler = signal.signal(signal.SIGINT, handler)
+        func(*args, **kwargs)
+        signal.signal(signal.SIGINT, old_handler)
+    return wrapper
 
 
 class Station:
@@ -78,17 +95,40 @@ class Station:
         self._print(f'Data saved in {w.datapath}')
         return SweepResult(self._basedir, w.id, w.metadata, w.datapath)
 
-    def sweep(self, param, setpoints, delay: float=0.0):
-        # We don't want to allow interrupts while communicating with
-        # instruments. This checks for interrupts after measuring.
-        # TODO: Allow interrupting the time.sleep() somehow, and potentially
-        #       also the param(setpoint) if possible.
-        interrupt_requested = False
-        def handler(signum, frame):
-            nonlocal interrupt_requested
-            interrupt_requested = True
-        old_handler = signal.signal(signal.SIGINT, handler)
+    @_interruptible
+    def watch(self, delay: float=0.0, max_duration=None):
+        with sweep.db.Writer(self._basedir) as w, self._plotter as p:
+            self._print(f'Starting run with ID {w.id}')
+            w.metadata['type'] = '1D'
+            w.metadata['delay'] = delay
+            w.metadata['max_duration'] = max_duration
+            w.metadata['columns'] = ['time'] + self._col_names()
+            w.metadata['interrupted'] = False
+            w.metadata['start_time'] = time.time()
+            p.set_cols(w.metadata['columns'])
+            t_start = time.monotonic() # Can't go backwards!
+            while max_duration is None or time.monotonic() - t_start < max_duration:
+                time.sleep(delay)
+                data = [time.time()] + self._measure()
+                w.add_point(data)
+                p.add_point(data)
+                if self.interrupt_requested:
+                    w.metadata['interrupted'] = True
+                    break
+            w.metadata['end_time'] = time.time()
+            image = p.send_image()
+            if image is not None:
+                w.add_blob('plot.png', image)
+                display.display(display.Image(data=image, format='png'))
+        duration = w.metadata['end_time'] - w.metadata['start_time']
+        self._print(f'Completed in {_sec_to_str(duration)}')
+        self._print(f'Data saved in {w.datapath}')
 
+        return SweepResult(self._basedir, w.id, w.metadata, w.datapath)
+                
+
+    @_interruptible
+    def sweep(self, param, setpoints, delay: float=0.0):
         with sweep.db.Writer(self._basedir) as w, self._plotter as p:
             self._print(f'Starting run with ID {w.id}')
             self._print(f'Minimum duration {_sec_to_str(len(setpoints) * delay)}')
@@ -100,7 +140,6 @@ class Station:
             w.metadata['setpoints'] = list(setpoints)
             w.metadata['interrupted'] = False
             w.metadata['start_time'] = time.time()
-
             p.set_cols(w.metadata['columns'])
 
             for setpoint in setpoints:
@@ -109,7 +148,7 @@ class Station:
                 data = [time.time(), setpoint] + self._measure()
                 w.add_point(data)
                 p.add_point(data)
-                if interrupt_requested:
+                if self.interrupt_requested:
                     w.metadata['interrupted'] = True
                     break
 
@@ -122,7 +161,5 @@ class Station:
         duration = w.metadata['end_time'] - w.metadata['start_time']
         self._print(f'Completed in {_sec_to_str(duration)}')
         self._print(f'Data saved in {w.datapath}')
-
-        signal.signal(signal.SIGINT, old_handler)
 
         return SweepResult(self._basedir, w.id, w.metadata, w.datapath)
