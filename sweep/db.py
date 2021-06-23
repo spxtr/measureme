@@ -143,7 +143,7 @@ class Writer:
 
     def close(self):
         with open(self.metadatapath, 'wt') as f:
-            json.dump(self.metadata, f)
+            json.dump(self.metadata, f, indent=4)
 
         # Take care to flush and fsync the file before compression.
         self._data.flush()
