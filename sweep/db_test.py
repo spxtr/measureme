@@ -5,7 +5,7 @@ import os.path
 import tempfile
 import unittest
 
-import db
+import sweep.db as db
 
 
 def _count_lines(path: str):
@@ -66,11 +66,11 @@ class TestReaderWriter(unittest.TestCase):
         self.assertTrue(os.path.isdir(os.path.join(self.dir.name, '0')))
         self.assertTrue(os.path.isdir(os.path.join(self.dir.name, '1')))
 
-        with gzip.open(os.path.join(self.dir.name, '0', 'data.csv.gz')) as f:
+        with gzip.open(os.path.join(self.dir.name, '0', 'data.tsv.gz')) as f:
             self.assertEqual(f.read(), b'0\r\n')
 
-        with gzip.open(os.path.join(self.dir.name, '1', 'data.csv.gz')) as f:
-            self.assertEqual(f.read(), b'1,\r\n')
+        with gzip.open(os.path.join(self.dir.name, '1', 'data.tsv.gz')) as f:
+            self.assertEqual(f.read(), b'1\t\r\n')
 
     def test_metadata(self):
         with db.Writer(self.dir.name) as w:

@@ -33,7 +33,8 @@ dmm = DummyInstrument(name="dmm", gates=['idc', 'ig'])
 ```
 
 Now we can create a `Station` object and tell it to measure the two parameters
-on the DMM.
+on the DMM. The station automatically follows time in addition to what you
+specify.
 
 ```python
 s = sweep.Station()
@@ -53,12 +54,18 @@ result = s.measure()
 
 This will print out the location that the data is saved in, but you can access
 it programmatically from `result.datapath`. The data is stored as a compressed
-CSV, which can be natively read by `numpy` with either `np.loadtxt` or
+TSV, which can be natively read by `numpy` with either `np.loadtxt` or
 `np.genfromtxt`. The column names are stored in `result.metadata['columns']`,
-and the metadata dictionary is also saved in the same folder as the data.
+and the metadata dictionary is also saved in JSON format in the same folder as
+the data.
+
+```python
+print(result.metadata['columns'])
+print(np.loadtxt(result.datapath))
+```
 
 If you wish to measure repeatedly over time, use `s.watch`. You'll want to pass
-in a delay between measurements, as well as a maximum duration (no limit if not
+in a delay between measurements as well as a maximum duration (no limit if not
 specified). Press the stop button in Jupyter (or hit ctrl-c in a terminal) to
 interrupt the watch. All times are in seconds.
 
@@ -79,3 +86,47 @@ then set `dac.ch1` to 0.1, wait 1 second, etc. As with a 0D sweep, the `result`
 struct contains all the information you need in order to load up the data. In
 practice, it is much more convenient to use `numpy` to generate the list of
 setpoints. In this case, `np.linspace(0, 0.3, 4)` would do the trick.
+
+A 2D sweep requires a slow parameter with setpoints and a fast parameter with
+setpoints.
+
+```python
+result = s.sweep(
+    dac.ch1, np.linspace(0, 1, 11),
+    dac.ch2, np.linspace(0, 1, 11),
+    slow_delay=10, fast_delay=1)
+```
+
+This will set `dac.ch1` to 0, wait 10 seconds, then sweep `dac.ch2` from 0 to 1,
+waiting 1 second in between each, then to the next `dac.ch1` setpoint, wait 10
+second, and so on. In this case, `dac.ch1` is the "slow" parameter and `dac.ch2`
+is the "fast" parameter.
+
+## Plotting
+
+Call `s.plot(x, y, z)` to add a live plot. Note that `z` is optional, leaving it
+off will result in a 1D plot.
+
+```python
+s.plot(dac.ch1, dmm.ig)
+
+result = s.sweep(dac.ch1, np.linspace(0, 1, 11), delay=1)
+```
+
+When the sweep runs, a window will open up and the plot will update as data
+comes in. You can plot multiple traces on a 1D plot by including them in the
+same `plot` call.
+
+```python
+s.plot(dac.ch1, [dmm.ig, dmm.idc])
+```
+
+2D plots also work.
+
+```python
+s.plot(dac.ch1, dac.ch2, dmm.idc)
+
+result = s.sweep(
+    dac.ch1, np.linspace(0, 1, 11),
+    dac.ch2, np.linspace(0, 1, 11))
+```

@@ -2,7 +2,7 @@ import tempfile
 import unittest
 
 import sweep
-import sweep.db
+import sweep.db as db
 
 
 class _DummyParam:

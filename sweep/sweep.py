@@ -40,8 +40,9 @@ def _interruptible(func):
         def handler(signum, frame):
             args[0].interrupt_requested = True
         old_handler = signal.signal(signal.SIGINT, handler)
-        func(*args, **kwargs)
+        result = func(*args, **kwargs)
         signal.signal(signal.SIGINT, old_handler)
+        return result
     return wrapper
 
 
@@ -84,6 +85,9 @@ class Station:
 
     def plot(self, x, y, z=None):
         self._plotter.plot(x, y, z)
+
+    def reset_plots(self):
+        self._plotter.reset_plots()
 
     def measure(self):
         with sweep.db.Writer(self._basedir) as w:
@@ -150,6 +154,52 @@ class Station:
                 p.add_point(data)
                 if self.interrupt_requested:
                     w.metadata['interrupted'] = True
+                    break
+
+            w.metadata['end_time'] = time.time()
+            image = p.send_image()
+            if image is not None:
+                w.add_blob('plot.png', image)
+                display.display(display.Image(data=image, format='png'))
+
+        duration = w.metadata['end_time'] - w.metadata['start_time']
+        self._print(f'Completed in {_sec_to_str(duration)}')
+        self._print(f'Data saved in {w.datapath}')
+
+        return SweepResult(self._basedir, w.id, w.metadata, w.datapath)
+
+    @_interruptible
+    def megasweep(self, slow_param, slow_v, fast_param, fast_v, slow_delay=0, fast_delay=0):
+        with sweep.db.Writer(self._basedir) as w, self._plotter as p:
+            self._print(f'Starting run with ID {w.id}')
+            min_duration = len(slow_v) * len(fast_v) * fast_delay + len(slow_v) * slow_delay
+            self._print(f'Minimum duration {_sec_to_str(min_duration)}')
+
+            w.metadata['type'] = '2D'
+            w.metadata['slow_delay'] = slow_delay
+            w.metadata['fast_delay'] = slow_delay
+            w.metadata['slow_param'] = slow_param.full_name
+            w.metadata['fast_param'] = fast_param.full_name
+            w.metadata['columns'] = ['time', slow_param.full_name, fast_param.full_name] + self._col_names()
+            w.metadata['slow_setpoints'] = list(slow_v)
+            w.metadata['fast_setpoints'] = list(fast_v)
+            w.metadata['interrupted'] = False
+            w.metadata['start_time'] = time.time()
+            p.set_cols(w.metadata['columns'])
+
+            for ov in slow_v:
+                slow_param(ov)
+                time.sleep(slow_delay)
+                for iv in fast_v:
+                    fast_param(iv)
+                    time.sleep(fast_delay)
+                    data = [time.time(), ov, iv] + self._measure()
+                    w.add_point(data)
+                    p.add_point(data)
+                    if self.interrupt_requested:
+                        w.metadata['interrupted'] = True
+                        break
+                if self.interrupt_requested:
                     break
 
             w.metadata['end_time'] = time.time()

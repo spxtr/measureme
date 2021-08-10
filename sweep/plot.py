@@ -5,6 +5,8 @@ import multiprocessing
 import signal
 
 import numpy as np
+import scipy
+from scipy.interpolate import griddata
 import matplotlib
 matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
@@ -28,18 +30,26 @@ class _PlotProc:
         self._fig = plt.figure(figsize=(4 * cols, 4 * rows))
         grid = plt.GridSpec(rows, cols)
         self._lines = []
+        self._meshes = []
         self._axs = []
         for i, (xs, ys, zs) in enumerate(plots):
-            if len(zs) == 0:
-                ax = self._fig.add_subplot(grid[i // 4, i % 4])
+            ax = self._fig.add_subplot(grid[i // 4, i % 4])
+            self._axs.append(ax)
+            if len(ys) > 1 or len(xs) > 1:
+                ax.legend()
+            if len(xs) == 1:
                 ax.set_xlabel(xs[0])
-                for y in ys:
-                    self._lines.append((xs[0], y, ax.plot([], [], label=y)[0]))
-                if len(ys) == 1:
-                    ax.set_ylabel(ys[0])
+            if len(ys) == 1:
+                ax.set_ylabel(ys[0])
+            if len(zs) == 0:
+                if len(xs) == 1:
+                    for y in ys:
+                        self._lines.append((xs[0], y, ax.plot([], [], label=y)[0]))
                 else:
-                    ax.legend()
-                self._axs.append(ax)
+                    for x, y in zip(xs, ys):
+                        self._lines.append((x, y, ax.plot([], [], label=f'{x} - {y}')[0]))
+            else:
+                self._meshes.append((xs[0], ys[0], zs[0], [], [], [], ax))
         self._fig.show()
     
     def stop(self):
@@ -52,6 +62,34 @@ class _PlotProc:
                     continue
                 line.set_xdata(np.append(line.get_xdata(), point[x]))
                 line.set_ydata(np.append(line.get_ydata(), point[y]))
+            for x, y, z, xd, yd, zd, ax in self._meshes:
+                if x not in point or y not in point or z not in point:
+                    continue
+                xd.append(point[x])
+                yd.append(point[y])
+                zd.append(point[z])
+                xmin, xmax, lx = np.min(xd), np.max(xd), len(np.unique(xd))
+                ymin, ymax, ly = np.min(yd), np.max(yd), len(np.unique(yd))
+                xi = np.linspace(xmin, xmax, lx)
+                yi = np.linspace(ymin, ymax, ly)
+                X, Y = np.meshgrid(xi, yi)
+                ax.clear()
+                if lx > 1 and ly > 1:
+                    zi = griddata((xd, yd), zd, (X, Y))
+                    ax.pcolormesh(X, Y, zi, shading='nearest')
+                    ax.set_xlabel(x)
+                    ax.set_ylabel(y)
+                elif lx == 1 and ly > 1:
+                    ax.plot(yd, zd)
+                    ax.set_xlabel(y)
+                    ax.set_ylabel(z)
+                elif ly == 1 and lx > 1:
+                    ax.plot(xd, zd)
+                    ax.set_xlabel(x)
+                    ax.set_ylabel(z)
+                if lx > 1 and ly > 1:
+                    ax.set_xlim(np.min(xd), np.max(xd))
+                    ax.set_ylim(np.min(yd), np.max(yd))
         for ax in self._axs:
             ax.relim()
             ax.autoscale_view()
@@ -97,6 +135,9 @@ class Plotter:
         self._proc = None
         self._parent_pipe = None
 
+    def reset_plots(self):
+        self._plots = []
+
     def plot(self, x, y, z):
         def to_names(v):
             if v is None:
@@ -111,7 +152,14 @@ class Plotter:
                     nl.append(n(item))
                 return nl
             return [n(v)]
-        self._plots.append((to_names(x), to_names(y), to_names(z)))
+        xs, ys, zs = to_names(x), to_names(y), to_names(z)
+        if len(xs) > 1 and len(ys) > 1 and len(xs) != len(ys):
+            raise ValueError('if multiple xs given, number must be same as ys')
+        if len(zs) == 1 and (len(xs) > 1 or len(ys) > 1):
+            raise ValueError('2d plots can only have one x and y')
+        if len(zs) > 1:
+            raise ValueError('can only have one z parameter')
+        self._plots.append((xs, ys, zs))
 
     def set_cols(self, cols):
         self._cols = cols

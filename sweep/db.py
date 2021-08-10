@@ -47,7 +47,7 @@ class Reader:
     def __init__(self, basedir: str, id: int):
         basedir = os.path.expanduser(basedir)
         self.dir: str = os.path.join(basedir, str(id))
-        self.datapath: str = os.path.join(self.dir, 'data.csv.gz')
+        self.datapath: str = os.path.join(self.dir, 'data.tsv.gz')
         self._data = gzip.open(self.datapath, 'rt')
         with open(os.path.join(self.dir, 'metadata.json')) as f:
             self.metadata: Dict = json.load(f)
@@ -65,7 +65,7 @@ class Reader:
     def all_data(self) -> List[List[str]]:
         res = []
         self._data.seek(0)
-        for row in csv.reader(self._data):
+        for row in csv.reader(self._data, delimiter='\t'):
             res.append(row)
         return res
 
@@ -85,9 +85,9 @@ class Writer:
     attribute.
 
     Add data using either add_point or add_points. These will be stored in a
-    gzipped CSV file called 'data.csv.gz', accessible via the datapath
+    gzipped TSV file called 'data.tsv.gz', accessible via the datapath
     attribute once the writer is closed. Before this point, they will be stored
-    uncompressed in 'data.csv'.
+    uncompressed in 'data.tsv'.
 
     (Nearly) arbitrary key/value pairs can be stored in the metadata attribute.
     This will be saved in JSON format in 'metadata.json', accessible via the
@@ -124,9 +124,9 @@ class Writer:
             raise RuntimeError('could not pick an id, hit the maximum')
         self.dir: str = os.path.join(basedir, str(self.id))
 
-        self.datapath: str = os.path.join(self.dir, 'data.csv')
+        self.datapath: str = os.path.join(self.dir, 'data.tsv')
         self._data = open(self.datapath, 'wt', newline='')
-        self._writer = csv.writer(self._data)
+        self._writer = csv.writer(self._data, delimiter='\t')
 
         self.metadatapath: str = os.path.join(self.dir, 'metadata.json')
         self.metadata: Dict = {}
@@ -158,7 +158,13 @@ class Writer:
         if not _files_equal(self.datapath, self.datapath + '.gz'):
             raise RuntimeError('compressed file not equal to uncompressed, '
                     'leaving both')
-        os.remove(self.datapath)
+        # TODO: On Windows this will fail if any other program has the file
+        # open, including if Dropbox is syncing it. Consider adding a retry or
+        # something? idk
+        try:
+            os.remove(self.datapath)
+        except Exception:
+            pass
         self.datapath += '.gz'
 
     def add_points(self, points: List[List]):
@@ -174,7 +180,7 @@ class Writer:
         self.add_points([point])
 
     def add_blob(self, name: str, data: bytes) -> str:
-        if name in {'data.csv', 'data.csv.gz', 'metadata.json'}:
+        if name in {'data.tsv', 'data.tsv.gz', 'metadata.json'}:
             raise ValueError(f'blob name cannot be {name}')
 
         blobpath = os.path.join(self.dir, name)
