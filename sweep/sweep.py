@@ -3,6 +3,7 @@ import functools
 import os
 import signal
 import time
+import json
 from typing import Callable, Dict, List, Union
 
 from IPython import display
@@ -12,9 +13,12 @@ import sweep.plot
 
 
 BASEDIR = None
+
+
 def set_basedir(path):
     global BASEDIR
     BASEDIR = path
+
 
 def _sec_to_str(d):
     h, m, s = int(d/3600), int(d/60) % 60, int(d) % 60
@@ -37,6 +41,7 @@ def _interruptible(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         args[0].interrupt_requested = False
+
         def handler(signum, frame):
             args[0].interrupt_requested = True
         old_handler = signal.signal(signal.SIGINT, handler)
@@ -53,7 +58,7 @@ class Station:
     measure over time with watch.
     '''
 
-    def __init__(self, basedir: str=None, verbose: bool=True):
+    def __init__(self, basedir: str = None, verbose: bool = True):
         '''Create a Station.'''
         global BASEDIR
         if basedir is not None:
@@ -73,7 +78,7 @@ class Station:
     def _col_names(self) -> List[str]:
         return [p.full_name for p, _ in self._params]
 
-    def follow_param(self, param, gain: float=1.0):
+    def follow_param(self, param, gain: float = 1.0):
         self._params.append((param, gain))
         return self
 
@@ -100,7 +105,7 @@ class Station:
         return SweepResult(self._basedir, w.id, w.metadata, w.datapath)
 
     @_interruptible
-    def watch(self, delay: float=0.0, max_duration=None):
+    def watch(self, delay: float = 0.0, max_duration=None, user_metadata=None):
         with sweep.db.Writer(self._basedir) as w, self._plotter as p:
             self._print(f'Starting run with ID {w.id}')
             w.metadata['type'] = '1D'
@@ -110,7 +115,7 @@ class Station:
             w.metadata['interrupted'] = False
             w.metadata['start_time'] = time.time()
             p.set_cols(w.metadata['columns'])
-            t_start = time.monotonic() # Can't go backwards!
+            t_start = time.monotonic()  # Can't go backwards!
             while max_duration is None or time.monotonic() - t_start < max_duration:
                 time.sleep(delay)
                 data = [time.time()] + self._measure()
@@ -120,6 +125,10 @@ class Station:
                     w.metadata['interrupted'] = True
                     break
             w.metadata['end_time'] = time.time()
+
+            if user_metadata is not None:
+                w.add_blob('user_metadata.json', json.dumps(user_metadata))
+
             image = p.send_image()
             if image is not None:
                 w.add_blob('plot.png', image)
@@ -129,18 +138,19 @@ class Station:
         self._print(f'Data saved in {w.datapath}')
 
         return SweepResult(self._basedir, w.id, w.metadata, w.datapath)
-                
 
     @_interruptible
-    def sweep(self, param, setpoints, delay: float=0.0):
+    def sweep(self, param, setpoints, delay: float = 0.0, user_metadata=None):
         with sweep.db.Writer(self._basedir) as w, self._plotter as p:
             self._print(f'Starting run with ID {w.id}')
-            self._print(f'Minimum duration {_sec_to_str(len(setpoints) * delay)}')
+            self._print(
+                f'Minimum duration {_sec_to_str(len(setpoints) * delay)}')
 
             w.metadata['type'] = '1D'
             w.metadata['delay'] = delay
             w.metadata['param'] = param.full_name
-            w.metadata['columns'] = ['time', param.full_name] + self._col_names()
+            w.metadata['columns'] = [
+                'time', param.full_name] + self._col_names()
             w.metadata['setpoints'] = list(setpoints)
             w.metadata['interrupted'] = False
             w.metadata['start_time'] = time.time()
@@ -148,7 +158,7 @@ class Station:
 
             for setpoint in setpoints:
                 param(setpoint)
-                time.sleep(delay) # TODO: Account for time spent in between?
+                time.sleep(delay)  # TODO: Account for time spent in between?
                 data = [time.time(), setpoint] + self._measure()
                 w.add_point(data)
                 p.add_point(data)
@@ -157,6 +167,10 @@ class Station:
                     break
 
             w.metadata['end_time'] = time.time()
+
+            if user_metadata is not None:
+                w.add_blob('user_metadata.json', json.dumps(user_metadata))
+
             image = p.send_image()
             if image is not None:
                 w.add_blob('plot.png', image)
@@ -169,10 +183,11 @@ class Station:
         return SweepResult(self._basedir, w.id, w.metadata, w.datapath)
 
     @_interruptible
-    def megasweep(self, slow_param, slow_v, fast_param, fast_v, slow_delay=0, fast_delay=0):
+    def megasweep(self, slow_param, slow_v, fast_param, fast_v, slow_delay=0, fast_delay=0, user_metadata=None):
         with sweep.db.Writer(self._basedir) as w, self._plotter as p:
             self._print(f'Starting run with ID {w.id}')
-            min_duration = len(slow_v) * len(fast_v) * fast_delay + len(slow_v) * slow_delay
+            min_duration = len(slow_v) * len(fast_v) * \
+                fast_delay + len(slow_v) * slow_delay
             self._print(f'Minimum duration {_sec_to_str(min_duration)}')
 
             w.metadata['type'] = '2D'
@@ -180,7 +195,8 @@ class Station:
             w.metadata['fast_delay'] = slow_delay
             w.metadata['slow_param'] = slow_param.full_name
             w.metadata['fast_param'] = fast_param.full_name
-            w.metadata['columns'] = ['time', slow_param.full_name, fast_param.full_name] + self._col_names()
+            w.metadata['columns'] = ['time', slow_param.full_name,
+                                     fast_param.full_name] + self._col_names()
             w.metadata['slow_setpoints'] = list(slow_v)
             w.metadata['fast_setpoints'] = list(fast_v)
             w.metadata['interrupted'] = False
@@ -203,6 +219,10 @@ class Station:
                     break
 
             w.metadata['end_time'] = time.time()
+
+            if user_metadata is not None:
+                w.add_blob('user_metadata.json', json.dumps(user_metadata))
+
             image = p.send_image()
             if image is not None:
                 w.add_blob('plot.png', image)
