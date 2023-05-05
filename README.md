@@ -38,8 +38,8 @@ specify.
 
 ```python
 s = sweep.Station()
-s.follow_parameter(dmm.idc)
-s.follow_parameter(dmm.ig)
+s.follow_param(dmm.idc)
+s.follow_param(dmm.ig)
 ```
 
 There is an optional gain parameter that will be divided out of all
