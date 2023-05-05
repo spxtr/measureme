@@ -140,7 +140,9 @@ same `plot` call.
 s.plot(dac.ch1, [dmm.ig, dmm.idc])
 ```
 
-2D plots also work.
+2D plots also work. **Warning**: I have found that 2D plots can really slow
+down python, even though I tried to use multiprocessing to make this not the
+case. I'll try to fix it sometime, but maybe don't use it for now?
 
 ```python
 s.plot(dac.ch1, dac.ch2, dmm.idc)
