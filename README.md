@@ -121,6 +121,20 @@ waiting 1 second in between each, then to the next `dac.ch1` setpoint, wait 10
 second, and so on. In this case, `dac.ch1` is the "slow" parameter and `dac.ch2`
 is the "fast" parameter.
 
+## Previous measurement information
+
+To list previous measurements in a table along with metadata, use
+
+```python
+sweep.list_measurements()
+```
+
+To show information about a single measurement, replace 42 with the ID in
+
+```python
+sweep.measurement_info(42)
+```
+
 ## Plotting
 
 Call `s.plot(x, y, z)` to add a live plot. Note that `z` is optional, leaving it

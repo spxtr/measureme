@@ -16,9 +16,99 @@ def set_basedir(path):
     global BASEDIR
     BASEDIR = path
 
+
 def _sec_to_str(d):
     h, m, s = int(d/3600), int(d/60) % 60, int(d) % 60
     return f'{h}h {m}m {s}s'
+
+
+def list_measurements(basedir=None):
+    global BASEDIR
+    if basedir is not None:
+        path = basedir
+    elif BASEDIR is not None:
+        path = BASEDIR
+    else:
+        path = os.getcwd()
+
+    def line(i, md):
+        data = [str(i)]
+        if 'start_time' in md:
+            data.append(time.strftime('%Y-%b-%d %H:%M:%S', time.localtime(md['start_time'])))
+        else:
+            data.append('')
+        if 'start_time' in md and 'end_time' in md:
+            data.append(_sec_to_str(md['end_time'] - md['start_time']))
+        else:
+            data.append('')
+        data.append(md['type'])
+        data.append('yes' if md['interrupted'] else '')
+        data.append(md['param'] if 'param' in md else '')
+        data.append(md['slow_param'] if 'slow_param' in md else '')
+        data.append(md['fast_param'] if 'fast_param' in md else '')
+        return '|' + '|'.join(data) + '|'
+
+    data = [
+        '|ID|Start time|Duration|Type|Interrupted|Param|Slow param|Fast param|',
+        '|---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|',
+    ]
+    i = 0
+    while True:
+        try:
+            with sweep.db.Reader(path, i) as r:
+                data.append(line(i, r.metadata))
+            i += 1
+        except:
+            break
+    display.display_markdown('\n'.join(data), raw=True)
+
+
+def measurement_info(i, basedir=None):
+    global BASEDIR
+    if basedir is not None:
+        path = basedir
+    elif BASEDIR is not None:
+        path = BASEDIR
+    else:
+        path = os.getcwd()
+
+    def format_list(l):
+        newls = []
+        if len(l) > 10:
+            newls = l[:3] + ['...'] + l[-3:]
+        else:
+            newls = l
+        return '[' + ', '.join([str(x) for x in newls]) + ']'
+
+    with sweep.db.Reader(path, i) as r:
+        print('ID:', i)
+        print('Data path:', r.datapath)
+        md = r.metadata
+        if 'start_time' in md:
+            print('Start time:', time.strftime('%Y-%b-%d %H:%M:%S', time.localtime(md['start_time'])))
+        if 'start_time' in md and 'end_time' in md:
+            print('Duration:', _sec_to_str(md['end_time'] - md['start_time']))
+        print('Type:', md['type'])
+        print('Interrupted:', 'yes' if md['interrupted'] else 'no')
+        if 'param' in md:
+            print('Param:', md['param'])
+        if 'slow_param' in md:
+            print('Slow param:', md['slow_param'])
+        if 'fast_param' in md:
+            print('Fast param:', md['slow_param'])
+        if 'delay' in md:
+            print('Delay:', md['delay'])
+        if 'fast_delay' in md:
+            print('Fast delay:', md['fast_delay'])
+        if 'slow_delay' in md:
+            print('Slow delay:', md['slow_delay'])
+        print('Columns:', ', '.join(md['columns']))
+        if 'setpoints' in md:
+            print('Setpoints:', format_list(md['setpoints']))
+        if 'slow_setpoints' in md:
+            print('Slow setpoints:', format_list(md['slow_setpoints']))
+        if 'fast_setpoints' in md:
+            print('Fast setpoints:', format_list(md['fast_setpoints']))
 
 
 @dataclasses.dataclass(repr=False)
