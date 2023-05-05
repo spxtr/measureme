@@ -5,10 +5,29 @@ lab, Matplotlib, and QCoDeS.
 
 ## Installation
 
-```
-git clone https://github.com/spxtr/measureme
-pip install -e measureme
-```
+Installing python projects can be a real pain. Here is how I personally set up
+lab computers to use measureme, but other ways can work fine. I do not like to
+use tools such as Conda or pipenv, because I find them to be a real headache.
+
+1. On Windows computers I typically use
+[GitHub Desktop](https://desktop.github.com/) for git.
+1. I install the latest Python 3 from python.org, system wide. I make sure that
+I can run Python from the command line. On Windows this sometimes means running
+`py` or `py3` or `python3`. I feel like it changes every time I do it, so just
+try them all and see what sticks. Later versions of Windows will annoyingly
+pop up some app store if you don't use the right incantation. Ignore that
+nonsense.
+1. Next, make sure `pip` exists with `python -m ensurepip`. Again, `pip` might
+have some odd path like `pip3`.
+1. `pip install jupyterlab`.
+1. Install `qcodes` according to [their guide](https://qcodes.github.io/Qcodes/start/index.html#installing-qcodes-from-github).
+First, `git clone` it, then `pip install -e /path/to/qcodes`. The `-e` means
+you can update the installation by simply doing `git pull`.
+1. Also install qcodes contrib drivers, if you use those instruments.
+1. Test qcodes by controlling some instrument. You will likely need NI drivers.
+1. Download and install measureme. Git clone, then `pip install -e` as you did
+for qcodes.
+1. Test measureme by following the basic usage section below!
 
 ## Basic usage
 
