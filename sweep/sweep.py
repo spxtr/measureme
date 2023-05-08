@@ -267,7 +267,7 @@ class Station:
 
             w.metadata['type'] = '2D'
             w.metadata['slow_delay'] = slow_delay
-            w.metadata['fast_delay'] = slow_delay
+            w.metadata['fast_delay'] = fast_delay
             w.metadata['slow_param'] = slow_param.full_name
             w.metadata['fast_param'] = fast_param.full_name
             w.metadata['columns'] = ['time', slow_param.full_name, fast_param.full_name] + self._col_names()
