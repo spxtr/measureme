@@ -202,6 +202,8 @@ class Station:
             w.metadata['columns'] = ['time'] + self._col_names()
             t = time.time()
             w.metadata['time'] = t
+            w.update_metadata()
+
             self._run_run_befores()
             w.add_point([t] + self._measure())
             self._run_run_afters()
@@ -220,6 +222,8 @@ class Station:
             w.metadata['interrupted'] = False
             w.metadata['start_time'] = time.time()
             p.set_cols(w.metadata['columns'])
+            w.update_metadata()
+
             t_start = time.monotonic() # Can't go backwards!
             while max_duration is None or time.monotonic() - t_start < max_duration:
                 time.sleep(delay)
@@ -260,6 +264,7 @@ class Station:
             w.metadata['interrupted'] = False
             w.metadata['start_time'] = time.time()
             p.set_cols(w.metadata['columns'])
+            w.update_metadata()
 
             for setpoint in setpoints:
                 param(setpoint)
@@ -305,6 +310,7 @@ class Station:
             w.metadata['interrupted'] = False
             w.metadata['start_time'] = time.time()
             p.set_cols(w.metadata['columns'])
+            w.update_metadata()
 
             for ov in slow_v:
                 slow_param(ov)
