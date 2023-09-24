@@ -158,6 +158,10 @@ class Station:
         self._plotter = sweep.plot.Plotter()
         self._run_befores = []
         self._run_afters = []
+        self._comments = []
+
+    def add_comment(self, comment: str):
+        self._comments.append(comment)
 
     def register_run_before(self, fn, args):
         self._run_befores.append((fn, args))
@@ -198,6 +202,7 @@ class Station:
 
     def measure(self):
         with sweep.db.Writer(self._basedir) as w:
+            w.metadata['comments'] = self._comments
             w.metadata['type'] = '0D'
             w.metadata['columns'] = ['time'] + self._col_names()
             t = time.time()
@@ -215,6 +220,7 @@ class Station:
         with sweep.db.Writer(self._basedir) as w, self._plotter as p:
             self._print(time.strftime('%H:%M%p %Z on %b %d, %Y'))
             self._print(f'Starting run with ID {w.id}')
+            w.metadata['comments'] = self._comments
             w.metadata['type'] = '1D'
             w.metadata['delay'] = delay
             w.metadata['max_duration'] = max_duration
@@ -256,6 +262,7 @@ class Station:
             self._print(f'Starting run with ID {w.id}')
             self._print(f'Minimum duration {_sec_to_str(len(setpoints) * delay)}')
 
+            w.metadata['comments'] = self._comments
             w.metadata['type'] = '1D'
             w.metadata['delay'] = delay
             w.metadata['param'] = param.full_name
@@ -299,6 +306,7 @@ class Station:
             min_duration = len(slow_v) * len(fast_v) * fast_delay + len(slow_v) * slow_delay
             self._print(f'Minimum duration {_sec_to_str(min_duration)}')
 
+            w.metadata['comments'] = self._comments
             w.metadata['type'] = '2D'
             w.metadata['slow_delay'] = slow_delay
             w.metadata['fast_delay'] = fast_delay
