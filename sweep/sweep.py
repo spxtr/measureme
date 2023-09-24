@@ -84,6 +84,8 @@ def measurement_info(i, basedir=None):
         print('ID:', i)
         print('Data path:', r.datapath)
         md = r.metadata
+        if 'comments' in md:
+            print('Comments:', md['comments'])
         if 'start_time' in md:
             print('Start time:', time.strftime('%Y-%b-%d %H:%M:%S', time.localtime(md['start_time'])))
         if 'start_time' in md and 'end_time' in md:
