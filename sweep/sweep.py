@@ -156,6 +156,23 @@ class Station:
         self._verbose: bool = verbose
         self._params: List = []
         self._plotter = sweep.plot.Plotter()
+        self._run_befores = []
+        self._run_afters = []
+
+    def register_run_before(self, fn, args):
+        self._run_befores.append((fn, args))
+
+    def _run_run_befores(self):
+        for fn, args in self._run_befores:
+            fn(*args)
+
+    def register_run_after(self, fn, args):
+        self._run_afters.append((fn, args))
+
+    def _run_run_afters(self):
+        for fn, args in self._run_afters:
+            fn(*args)
+
 
     def _measure(self) -> List[float]:
         return [p() / gain for p, gain in self._params]
@@ -185,13 +202,16 @@ class Station:
             w.metadata['columns'] = ['time'] + self._col_names()
             t = time.time()
             w.metadata['time'] = t
+            self._run_run_befores()
             w.add_point([t] + self._measure())
+            self._run_run_afters()
         self._print(f'Data saved in {w.datapath}')
         return SweepResult(self._basedir, w.id, w.metadata, w.datapath)
 
     @_interruptible
     def watch(self, delay: float=0.0, max_duration=None):
         with sweep.db.Writer(self._basedir) as w, self._plotter as p:
+            self._print(time.strftime('%H:%M%p %Z on %b %d, %Y'))
             self._print(f'Starting run with ID {w.id}')
             w.metadata['type'] = '1D'
             w.metadata['delay'] = delay
@@ -203,12 +223,16 @@ class Station:
             t_start = time.monotonic() # Can't go backwards!
             while max_duration is None or time.monotonic() - t_start < max_duration:
                 time.sleep(delay)
+                self._run_run_befores()
                 data = [time.time()] + self._measure()
                 w.add_point(data)
                 p.add_point(data)
+
                 if self.interrupt_requested:
                     w.metadata['interrupted'] = True
                     break
+
+                self._run_run_afters()
             w.metadata['end_time'] = time.time()
             image = p.send_image()
             if image is not None:
@@ -219,11 +243,12 @@ class Station:
         self._print(f'Data saved in {w.datapath}')
 
         return SweepResult(self._basedir, w.id, w.metadata, w.datapath)
-                
+
 
     @_interruptible
     def sweep(self, param, setpoints, delay: float=0.0):
         with sweep.db.Writer(self._basedir) as w, self._plotter as p:
+            self._print(time.strftime('%H:%M%p %Z on %b %d, %Y'))
             self._print(f'Starting run with ID {w.id}')
             self._print(f'Minimum duration {_sec_to_str(len(setpoints) * delay)}')
 
@@ -239,13 +264,16 @@ class Station:
             for setpoint in setpoints:
                 param(setpoint)
                 time.sleep(delay) # TODO: Account for time spent in between?
+                self._run_run_befores()
                 data = [time.time(), setpoint] + self._measure()
                 w.add_point(data)
                 p.add_point(data)
+
                 if self.interrupt_requested:
                     w.metadata['interrupted'] = True
                     break
 
+                self._run_run_afters()
             w.metadata['end_time'] = time.time()
             image = p.send_image()
             if image is not None:
@@ -261,6 +289,7 @@ class Station:
     @_interruptible
     def megasweep(self, slow_param, slow_v, fast_param, fast_v, slow_delay=0, fast_delay=0):
         with sweep.db.Writer(self._basedir) as w, self._plotter as p:
+            self._print(time.strftime('%H:%M%p %Z on %b %d, %Y'))
             self._print(f'Starting run with ID {w.id}')
             min_duration = len(slow_v) * len(fast_v) * fast_delay + len(slow_v) * slow_delay
             self._print(f'Minimum duration {_sec_to_str(min_duration)}')
@@ -283,12 +312,17 @@ class Station:
                 for iv in fast_v:
                     fast_param(iv)
                     time.sleep(fast_delay)
+                    self._run_run_befores()
                     data = [time.time(), ov, iv] + self._measure()
                     w.add_point(data)
                     p.add_point(data)
+
                     if self.interrupt_requested:
                         w.metadata['interrupted'] = True
                         break
+
+                    self._run_run_afters()
+
                 if self.interrupt_requested:
                     break
 
