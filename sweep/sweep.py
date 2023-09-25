@@ -162,18 +162,23 @@ class Station:
         self._run_afters = []
         self._comments = []
 
+
     def add_comment(self, comment: str):
         self._comments.append(comment)
 
+
     def register_run_before(self, fn, args):
         self._run_befores.append((fn, args))
+
 
     def _run_run_befores(self):
         for fn, args in self._run_befores:
             fn(*args)
 
+
     def register_run_after(self, fn, args):
         self._run_afters.append((fn, args))
+
 
     def _run_run_afters(self):
         for fn, args in self._run_afters:
@@ -183,24 +188,31 @@ class Station:
     def _measure(self) -> List[float]:
         return [p() / gain for p, gain in self._params]
 
+
     def _col_names(self) -> List[str]:
         return [p.full_name for p, _ in self._params]
+
 
     def follow_param(self, param, gain: float=1.0):
         self._params.append((param, gain))
         return self
 
+
     fp = follow_param
+
 
     def _print(self, msg):
         if self._verbose:
             print(msg)
 
+
     def plot(self, x, y, z=None):
         self._plotter.plot(x, y, z)
 
+
     def reset_plots(self):
         self._plotter.reset_plots()
+
 
     def measure(self):
         with sweep.db.Writer(self._basedir) as w:
@@ -216,6 +228,7 @@ class Station:
             self._run_run_afters()
         self._print(f'Data saved in {w.datapath}')
         return SweepResult(self._basedir, w.id, w.metadata, w.datapath)
+
 
     @_interruptible
     def watch(self, delay: float=0.0, max_duration=None):
@@ -300,6 +313,60 @@ class Station:
 
         return SweepResult(self._basedir, w.id, w.metadata, w.datapath)
 
+
+    @_interruptible
+    def multisweep(self, params, setpointslist, delay: float=0.0):
+        if not all(len(l) == len(setpointslist[0]) for l in setpointslist):
+            raise ValueError('not all setpoint lists have same length!')
+
+        setpoints = [list(i) for i in zip(*setpointslist)]
+        with sweep.db.Writer(self._basedir) as w, self._plotter as p:
+            self._print(time.strftime('%H:%M%p %Z on %b %d, %Y'))
+            self._print(f'Starting run with ID {w.id}')
+            self._print(f'Minimum duration {_sec_to_str(len(setpoints) * delay)}')
+
+            w.metadata['comments'] = self._comments
+            w.metadata['type'] = '1D'
+            w.metadata['delay'] = delay
+
+            paramlist = []
+            for param in params:
+                paramlist.append(param.full_name)
+            w.metadata['param'] = paramlist
+            w.metadata['columns'] = ['time'] + [param for param in paramlist] + self._col_names()
+            w.metadata['setpoints'] = [list(sps) for sps in setpointslist]
+            w.metadata['interrupted'] = False
+            w.metadata['start_time'] = time.time()
+            p.set_cols(w.metadata['columns'])
+            w.update_metadata()
+
+            for setpoint in setpoints:
+                for param, sp in zip(params, setpoint):
+                    param(sp)
+                time.sleep(delay) # TODO: Account for time spent in between?
+                self._run_run_befores()
+                data = [time.time(), setpoint] + self._measure()
+                w.add_point(data)
+                p.add_point(data)
+
+                if self.interrupt_requested:
+                    w.metadata['interrupted'] = True
+                    break
+
+                self._run_run_afters()
+            w.metadata['end_time'] = time.time()
+            image = p.send_image()
+            if image is not None:
+                w.add_blob('plot.png', image)
+                display.display(display.Image(data=image, format='png'))
+
+        duration = w.metadata['end_time'] - w.metadata['start_time']
+        self._print(f'Completed in {_sec_to_str(duration)}')
+        self._print(f'Data saved in {w.datapath}')
+
+        return SweepResult(self._basedir, w.id, w.metadata, w.datapath)
+
+
     @_interruptible
     def megasweep(self, slow_param, slow_v, fast_param, fast_v, slow_delay=0, fast_delay=0):
         with sweep.db.Writer(self._basedir) as w, self._plotter as p:
@@ -327,6 +394,80 @@ class Station:
                 time.sleep(slow_delay)
                 for iv in fast_v:
                     fast_param(iv)
+                    time.sleep(fast_delay)
+                    self._run_run_befores()
+                    data = [time.time(), ov, iv] + self._measure()
+                    w.add_point(data)
+                    p.add_point(data)
+
+                    if self.interrupt_requested:
+                        w.metadata['interrupted'] = True
+                        break
+
+                    self._run_run_afters()
+
+                if self.interrupt_requested:
+                    break
+
+            w.metadata['end_time'] = time.time()
+            image = p.send_image()
+            if image is not None:
+                w.add_blob('plot.png', image)
+                display.display(display.Image(data=image, format='png'))
+
+        duration = w.metadata['end_time'] - w.metadata['start_time']
+        self._print(f'Completed in {_sec_to_str(duration)}')
+        self._print(f'Data saved in {w.datapath}')
+
+        return SweepResult(self._basedir, w.id, w.metadata, w.datapath)
+
+
+    @_interruptible
+    def multimegasweep(self, slow_params, slow_v_list, fast_params, fast_v_list, slow_delay=0, fast_delay=0):
+        if not all(len(l) == len(fast_v_list[0]) for l in fast_v_list):
+            raise ValueError('not all fast axis setpoint lists have same length!')
+        if not all(len(l) == len(slow_v_list[0]) for l in slow_v_list):
+            raise ValueError('not all slow axis setpoint lists have same length!')
+
+        slow_vs = [list(i) for i in zip(*slow_v_list)]
+        fast_vs = [list(i) for i in zip(*fast_v_list)]
+
+        with sweep.db.Writer(self._basedir) as w, self._plotter as p:
+            self._print(time.strftime('%H:%M%p %Z on %b %d, %Y'))
+            self._print(f'Starting run with ID {w.id}')
+            min_duration = len(slow_vs[0]) * len(fast_vs[0]) * fast_delay + len(slow_vs[0]) * slow_delay
+            self._print(f'Minimum duration {_sec_to_str(min_duration)}')
+
+            w.metadata['comments'] = self._comments
+            w.metadata['type'] = '2D'
+            w.metadata['slow_delay'] = slow_delay
+            w.metadata['fast_delay'] = fast_delay
+
+            slowparamlist = []
+            for param in slow_params:
+                slowparamlist.append(param.full_name)
+
+            fastparamlist = []
+            for param in fast_params:
+                fastparamlist.append(param.full_name)
+
+            w.metadata['slow_param'] = slowparamlist
+            w.metadata['fast_param'] = fastparamlist
+            w.metadata['columns'] = ['time'] + [param for param in slowparamlist] + [param for param in fastparamlist] + self._col_names()
+            w.metadata['slow_setpoints'] = [list(sps) for sps in slow_v_list]
+            w.metadata['fast_setpoints'] = [list(sps) for sps in fast_v_list]
+            w.metadata['interrupted'] = False
+            w.metadata['start_time'] = time.time()
+            p.set_cols(w.metadata['columns'])
+            w.update_metadata()
+
+            for slow_v in slow_vs:
+                for slow_param, ov in zip(slow_params, slow_v):
+                    slow_param(ov)
+                time.sleep(slow_delay)
+                for fast_v in fast_vs:
+                    for fast_param, iv in zip(fast_params, fast_v):
+                        fast_param(iv)
                     time.sleep(fast_delay)
                     self._run_run_befores()
                     data = [time.time(), ov, iv] + self._measure()
