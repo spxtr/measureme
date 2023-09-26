@@ -345,7 +345,7 @@ class Station:
                     param(sp)
                 time.sleep(delay) # TODO: Account for time spent in between?
                 self._run_run_befores()
-                data = [time.time(), setpoint] + self._measure()
+                data = [time.time()] + setpoint + self._measure()
                 w.add_point(data)
                 p.add_point(data)
 
@@ -470,7 +470,7 @@ class Station:
                         fast_param(iv)
                     time.sleep(fast_delay)
                     self._run_run_befores()
-                    data = [time.time(), ov, iv] + self._measure()
+                    data = [time.time()] + slow_v + fast_v + self._measure()
                     w.add_point(data)
                     p.add_point(data)
 
