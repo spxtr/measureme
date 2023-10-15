@@ -33,7 +33,7 @@ class Reader:
     Values are not converted from strings, you'll have to manage that yourself.
     Consider adding type information to the metadata in order to accomplish
     this.
-    
+
     Metadata is loaded into the metadata attribute.
 
     Either use as an iterator over rows, or just call all_data. To load into a
@@ -142,8 +142,7 @@ class Writer:
         self.close()
 
     def close(self):
-        with open(self.metadatapath, 'wt') as f:
-            json.dump(self.metadata, f, indent=4)
+        self.update_metadata()
 
         # Take care to flush and fsync the file before compression.
         self._data.flush()
@@ -166,6 +165,11 @@ class Writer:
         except Exception:
             pass
         self.datapath += '.gz'
+
+    def update_metadata(self):
+        with open(self.metadatapath, 'wt') as f:
+            json.dump(self.metadata, f, indent=4)
+
 
     def add_points(self, points: List[List]):
         self._writer.writerows(points)
