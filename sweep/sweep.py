@@ -167,19 +167,23 @@ class Station:
         self._comments = []
 
     def init_logger(self):
-        logging.basicConfig(
-            handlers=[
-                logging.FileHandler(os.path.join(self._basedir, 'log.log')),
-                logging.StreamHandler()
-            ],
-            format='%(asctime)s [%(levelname)s] %(message)s'
-        )
+        self.logger = logging.getLogger('sweep_log')
+        file_handler = logging.FileHandler(filename=os.path.join(self._basedir, 'log.log'))
+        file_handler.setLevel(logging.DEBUG)
+        
+        stream_handler = logging.StreamHandler()
         if self._verbose:
-            root_logger = logging.getLogger()
-            root_logger.setLevel(logging.INFO)
+            stream_handler.setLevel(logging.INFO)
         else:
-            root_logger = logging.getLogger()
-            root_logger.setLevel(logging.WARNING)
+            stream_handler.setLevel(logging.WARNING)
+            
+        formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
+        file_handler.setFormatter(formatter)
+        stream_handler.setFormatter(formatter)
+        
+        self.logger.addHandler(file_handler)
+        self.logger.addHandler(stream_handler)
+        self.logger.setLevel(logging.DEBUG)
 
 
     def add_comment(self, comment: str):
@@ -240,14 +244,14 @@ class Station:
             self._run_run_befores()
             w.add_point([t] + self._measure())
             self._run_run_afters()
-        logging.info(f'Data saved in {w.datapath}')
+        self.logger.info(f'Data saved in {w.datapath}')
         return SweepResult(self._basedir, w.id, w.metadata, w.datapath)
 
 
     @_interruptible
     def watch(self, delay: float=0.0, max_duration=None):
         with sweep.db.Writer(self._basedir) as w, self._plotter as p:
-            logging.info(f'Starting watch with ID {w.id}')
+            self.logger.info(f'Starting watch with ID {w.id}')
             w.metadata['comments'] = self._comments
             w.metadata['type'] = '1D'
             w.metadata['delay'] = delay
@@ -267,7 +271,7 @@ class Station:
                 p.add_point(data)
 
                 if self.interrupt_requested:
-                    logging.warning(f'ID {w.id} INTERRUPTED')
+                    self.logger.warning(f'ID {w.id} INTERRUPTED')
                     w.metadata['interrupted'] = True
                     break
 
@@ -278,8 +282,8 @@ class Station:
                 w.add_blob('plot.png', image)
                 display.display(display.Image(data=image, format='png'))
         duration = w.metadata['end_time'] - w.metadata['start_time']
-        logging.info(f'Completed in {_sec_to_str(duration)}')
-        logging.info(f'Data saved in {w.datapath}')
+        self.logger.info(f'Completed in {_sec_to_str(duration)}')
+        self.logger.info(f'Data saved in {w.datapath}')
 
         return SweepResult(self._basedir, w.id, w.metadata, w.datapath)
 
@@ -287,8 +291,8 @@ class Station:
     @_interruptible
     def sweep(self, param, setpoints, delay: float=0.0):
         with sweep.db.Writer(self._basedir) as w, self._plotter as p:
-            logging.info(f'Starting sweep with ID {w.id}')
-            logging.info(f'Minimum duration {_sec_to_str(len(setpoints) * delay)}')
+            self.logger.info(f'Starting sweep with ID {w.id}')
+            self.logger.info(f'Minimum duration {_sec_to_str(len(setpoints) * delay)}')
 
             w.metadata['comments'] = self._comments
             w.metadata['type'] = '1D'
@@ -310,7 +314,7 @@ class Station:
                 p.add_point(data)
 
                 if self.interrupt_requested:
-                    logging.warning(f'ID {w.id} INTERRUPTED')
+                    self.logger.warning(f'ID {w.id} INTERRUPTED')
                     w.metadata['interrupted'] = True
                     break
 
@@ -322,8 +326,8 @@ class Station:
                 display.display(display.Image(data=image, format='png'))
 
         duration = w.metadata['end_time'] - w.metadata['start_time']
-        logging.info(f'Completed in {_sec_to_str(duration)}')
-        logging.info(f'Data saved in {w.datapath}')
+        self.logger.info(f'Completed in {_sec_to_str(duration)}')
+        self.logger.info(f'Data saved in {w.datapath}')
 
         return SweepResult(self._basedir, w.id, w.metadata, w.datapath)
 
@@ -335,8 +339,8 @@ class Station:
 
         setpoints = [list(i) for i in zip(*setpointslist)]
         with sweep.db.Writer(self._basedir) as w, self._plotter as p:
-            logging.info(f'Starting multisweep with ID {w.id}')
-            logging.info(f'Minimum duration {_sec_to_str(len(setpoints) * delay)}')
+            self.logger.info(f'Starting multisweep with ID {w.id}')
+            self.logger.info(f'Minimum duration {_sec_to_str(len(setpoints) * delay)}')
 
             w.metadata['comments'] = self._comments
             w.metadata['type'] = '1D'
@@ -356,14 +360,14 @@ class Station:
             for setpoint in tqdm.tqdm(setpoints):
                 for param, sp in zip(params, setpoint):
                     param(sp)
-                time.sleep(delay) # TODO: Account for time spent in between?
+                time.sleep(delay)
                 self._run_run_befores()
                 data = [time.time()] + setpoint + self._measure()
                 w.add_point(data)
                 p.add_point(data)
 
                 if self.interrupt_requested:
-                    logging.warning(f'ID {w.id} INTERRUPTED')
+                    self.logger.warning(f'ID {w.id} INTERRUPTED')
                     w.metadata['interrupted'] = True
                     break
 
@@ -375,8 +379,8 @@ class Station:
                 display.display(display.Image(data=image, format='png'))
 
         duration = w.metadata['end_time'] - w.metadata['start_time']
-        logging.info(f'Completed in {_sec_to_str(duration)}')
-        logging.info(f'Data saved in {w.datapath}')
+        self.logger.info(f'Completed in {_sec_to_str(duration)}')
+        self.logger.info(f'Data saved in {w.datapath}')
 
         return SweepResult(self._basedir, w.id, w.metadata, w.datapath)
 
@@ -384,9 +388,9 @@ class Station:
     @_interruptible
     def megasweep(self, slow_param, slow_v, fast_param, fast_v, slow_delay=0, fast_delay=0):
         with sweep.db.Writer(self._basedir) as w, self._plotter as p:
-            logging.info(f'Starting megasweep with ID {w.id}')
+            self.logger.info(f'Starting megasweep with ID {w.id}')
             min_duration = len(slow_v) * len(fast_v) * fast_delay + len(slow_v) * slow_delay
-            logging.info(f'Minimum duration {_sec_to_str(min_duration)}')
+            self.logger.info(f'Minimum duration {_sec_to_str(min_duration)}')
 
             w.metadata['comments'] = self._comments
             w.metadata['type'] = '2D'
@@ -402,7 +406,8 @@ class Station:
             p.set_cols(w.metadata['columns'])
             w.update_metadata()
 
-            for i,ov in enumerate(tqdm.tqdm(slow_v)):
+            for i,ov in enumerate(tqdm.tqdm(slow_v), start=1):
+                self.logger.debug(f'{i}/{len(slow_v)}')
                 slow_param(ov)
                 time.sleep(slow_delay)
                 for iv in fast_v:
@@ -414,12 +419,12 @@ class Station:
                     p.add_point(data)
 
                     if self.interrupt_requested:
-                        logging.warning(f'ID {w.id} INTERRUPTED')
+                        self.logger.warning(f'ID {w.id} INTERRUPTED')
                         w.metadata['interrupted'] = True
                         break
 
                     self._run_run_afters()
-                #logging.debug(f'Completed: {i}/{len(slow_v)}')
+
                 if self.interrupt_requested:
                     break
 
@@ -430,8 +435,8 @@ class Station:
                 display.display(display.Image(data=image, format='png'))
 
         duration = w.metadata['end_time'] - w.metadata['start_time']
-        logging.info(f'Completed in {_sec_to_str(duration)}')
-        logging.info(f'Data saved in {w.datapath}')
+        self.logger.info(f'Completed in {_sec_to_str(duration)}')
+        self.logger.info(f'Data saved in {w.datapath}')
 
         return SweepResult(self._basedir, w.id, w.metadata, w.datapath)
 
@@ -447,9 +452,9 @@ class Station:
         fast_vs = [list(i) for i in zip(*fast_v_list)]
 
         with sweep.db.Writer(self._basedir) as w, self._plotter as p:
-            logging.info(f'Starting multimegasweep with ID {w.id}')
-            min_duration = len(slow_vs[0]) * len(fast_vs[0]) * fast_delay + len(slow_vs[0]) * slow_delay
-            logging.info(f'Minimum duration {_sec_to_str(min_duration)}')
+            self.logger.info(f'Starting multimegasweep with ID {w.id}')
+            min_duration = len(slow_vs) * len(fast_vs) * fast_delay + len(slow_vs) * slow_delay
+            self.logger.info(f'Minimum duration {_sec_to_str(min_duration)}')
 
             w.metadata['comments'] = self._comments
             w.metadata['type'] = '2D'
@@ -474,7 +479,8 @@ class Station:
             p.set_cols(w.metadata['columns'])
             w.update_metadata()
 
-            for slow_v in tqdm.tqdm(slow_vs):
+            for i, slow_v in enumerate(tqdm.tqdm(slow_vs), start=1):
+                self.logger.debug(f'{i}/{len(slow_vs)}')
                 for slow_param, ov in zip(slow_params, slow_v):
                     slow_param(ov)
                 time.sleep(slow_delay)
@@ -488,7 +494,7 @@ class Station:
                     p.add_point(data)
 
                     if self.interrupt_requested:
-                        logging.warning(f'ID {w.id} INTERRUPTED')
+                        self.logger.warning(f'ID {w.id} INTERRUPTED')
                         w.metadata['interrupted'] = True
                         break
 
@@ -504,7 +510,7 @@ class Station:
                 display.display(display.Image(data=image, format='png'))
 
         duration = w.metadata['end_time'] - w.metadata['start_time']
-        logging.info(f'Completed in {_sec_to_str(duration)}')
-        logging.info(f'Data saved in {w.datapath}')
+        self.logger.info(f'Completed in {_sec_to_str(duration)}')
+        self.logger.info(f'Data saved in {w.datapath}')
 
         return SweepResult(self._basedir, w.id, w.metadata, w.datapath)

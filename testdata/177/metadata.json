@@ -1,0 +1,21 @@
+{
+    "comments": [],
+    "type": "1D",
+    "delay": 0.1,
+    "param": "dac_ch1",
+    "columns": [
+        "time",
+        "dac_ch1",
+        "dmm_idc",
+        "dmm_ig"
+    ],
+    "setpoints": [
+        0,
+        0.1,
+        0.2,
+        0.3
+    ],
+    "interrupted": false,
+    "start_time": 1699207558.3216891,
+    "end_time": 1699207558.748825
+}

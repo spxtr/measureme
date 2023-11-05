@@ -1,0 +1,14 @@
+{
+    "comments": [],
+    "type": "1D",
+    "delay": 0.0,
+    "max_duration": 1,
+    "columns": [
+        "time",
+        "dmm_idc",
+        "dmm_ig"
+    ],
+    "interrupted": false,
+    "start_time": 1699208295.3125,
+    "end_time": 1699208296.3088264
+}
