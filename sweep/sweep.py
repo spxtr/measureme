@@ -386,7 +386,7 @@ class Station:
 
 
     @_interruptible
-    def megasweep(self, slow_param, slow_v, fast_param, fast_v, slow_delay=0, fast_delay=0):
+    def megasweep(self, slow_param, slow_v, fast_param, fast_v, slow_delay=0, fast_delay=0, **kwargs):
         with sweep.db.Writer(self._basedir) as w, self._plotter as p:
             self.logger.info(f'Starting megasweep with ID {w.id}')
             min_duration = len(slow_v) * len(fast_v) * fast_delay + len(slow_v) * slow_delay
@@ -406,10 +406,15 @@ class Station:
             p.set_cols(w.metadata['columns'])
             w.update_metadata()
 
-            for i,ov in enumerate(tqdm(slow_v), start=1):
-                self.logger.debug(f'{i}/{len(slow_v)}')
+            for i,ov in enumerate(tqdm(slow_v)):
+                self.logger.debug(f'{i+1}/{len(slow_v)}')
                 slow_param(ov)
-                time.sleep(slow_delay)
+                if 'skip_initial_delay' in kwargs:
+                    if kwargs['skip_initial_delay'] and i==0:
+                        pass
+                    else:
+                        time.sleep(slow_delay)
+                        
                 for iv in tqdm(fast_v, position=1, leave=False):
                     fast_param(iv)
                     time.sleep(fast_delay)
@@ -442,7 +447,7 @@ class Station:
 
 
     @_interruptible
-    def multimegasweep(self, slow_params, slow_v_list, fast_params, fast_v_list, slow_delay=0, fast_delay=0):
+    def multimegasweep(self, slow_params, slow_v_list, fast_params, fast_v_list, slow_delay=0, fast_delay=0, **kwargs):
         if not all(len(l) == len(fast_v_list[0]) for l in fast_v_list):
             raise ValueError('not all fast axis setpoint lists have same length!')
         if not all(len(l) == len(slow_v_list[0]) for l in slow_v_list):
@@ -479,11 +484,16 @@ class Station:
             p.set_cols(w.metadata['columns'])
             w.update_metadata()
 
-            for i, slow_v in enumerate(tqdm(slow_vs), start=1):
-                self.logger.debug(f'{i}/{len(slow_vs)}')
+            for i, slow_v in enumerate(tqdm(slow_vs)):
+                self.logger.debug(f'{i+1}/{len(slow_vs)}')
                 for slow_param, ov in zip(slow_params, slow_v):
                     slow_param(ov)
-                time.sleep(slow_delay)
+                if 'skip_initial_delay' in kwargs:
+                    if kwargs['skip_initial_delay'] and i==0:
+                        pass
+                    else:
+                        time.sleep(slow_delay)
+                    
                 for fast_v in tqdm(fast_vs, position=1, leave=False):
                     for fast_param, iv in zip(fast_params, fast_v):
                         fast_param(iv)
