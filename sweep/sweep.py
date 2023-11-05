@@ -5,7 +5,7 @@ import signal
 import time
 from typing import Callable, Dict, List, Union
 
-import tqdm
+from tqdm.auto import tqdm
 import logging
 
 from IPython import display
@@ -305,7 +305,7 @@ class Station:
             p.set_cols(w.metadata['columns'])
             w.update_metadata()
 
-            for setpoint in tqdm.tqdm(setpoints):
+            for setpoint in tqdm(setpoints):
                 param(setpoint)
                 time.sleep(delay) # TODO: Account for time spent in between?
                 self._run_run_befores()
@@ -357,7 +357,7 @@ class Station:
             p.set_cols(w.metadata['columns'])
             w.update_metadata()
 
-            for setpoint in tqdm.tqdm(setpoints):
+            for setpoint in tqdm(setpoints):
                 for param, sp in zip(params, setpoint):
                     param(sp)
                 time.sleep(delay)
@@ -406,7 +406,7 @@ class Station:
             p.set_cols(w.metadata['columns'])
             w.update_metadata()
 
-            for i,ov in enumerate(tqdm.tqdm(slow_v), start=1):
+            for i,ov in enumerate(tqdm(slow_v), start=1):
                 self.logger.debug(f'{i}/{len(slow_v)}')
                 slow_param(ov)
                 time.sleep(slow_delay)
@@ -479,7 +479,7 @@ class Station:
             p.set_cols(w.metadata['columns'])
             w.update_metadata()
 
-            for i, slow_v in enumerate(tqdm.tqdm(slow_vs), start=1):
+            for i, slow_v in enumerate(tqdm(slow_vs), start=1):
                 self.logger.debug(f'{i}/{len(slow_vs)}')
                 for slow_param, ov in zip(slow_params, slow_v):
                     slow_param(ov)
