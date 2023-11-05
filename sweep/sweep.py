@@ -410,7 +410,7 @@ class Station:
                 self.logger.debug(f'{i}/{len(slow_v)}')
                 slow_param(ov)
                 time.sleep(slow_delay)
-                for iv in fast_v:
+                for iv in tqdm(fast_v, position=1, leave=False):
                     fast_param(iv)
                     time.sleep(fast_delay)
                     self._run_run_befores()
@@ -484,7 +484,7 @@ class Station:
                 for slow_param, ov in zip(slow_params, slow_v):
                     slow_param(ov)
                 time.sleep(slow_delay)
-                for fast_v in fast_vs:
+                for fast_v in tqdm(fast_vs, position=1, leave=False):
                     for fast_param, iv in zip(fast_params, fast_v):
                         fast_param(iv)
                     time.sleep(fast_delay)
