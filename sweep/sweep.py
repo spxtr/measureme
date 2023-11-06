@@ -237,7 +237,7 @@ class Station:
 
     def _check_interrupted(self):
         if self._interrupted:
-            raise ValueError('Station was previously interrupted, either remake it or use station.reset()')
+            raise InterruptedError('Station was previously interrupted, either remake it or use station.reset()')
 
     def _interruptable_sleep(self, delay):
         if delay <= 10:
