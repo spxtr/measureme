@@ -159,14 +159,15 @@ class Station:
             self._basedir: str = os.getcwd()
 
         self._verbose: bool = verbose
-        self.init_logger()
+        self._init_logger()
         self._params: List = []
         self._plotter = sweep.plot.Plotter()
         self._run_befores = []
         self._run_afters = []
         self._comments = []
+        self._interrupted = False
 
-    def init_logger(self):
+    def _init_logger(self):
         self.logger = logging.getLogger('sweep_log')
         file_handler = logging.FileHandler(filename=os.path.join(self._basedir, 'log.log'))
         file_handler.setLevel(logging.DEBUG)
@@ -231,8 +232,25 @@ class Station:
     def reset_plots(self):
         self._plotter.reset_plots()
 
+    def reset(self):
+        self._interrupted = False
+
+    def _check_interrupted(self):
+        if self._interrupted:
+            raise ValueError('Station was previously interrupted, either remake it or use station.reset()')
+
+    def _interruptable_sleep(self, delay):
+        if delay <= 10:
+            time.sleep(delay)
+        else:
+            t0 = time.time()
+            while time.time()-t0 < delay:
+                if self.interrupt_requested:
+                    break
+                time.sleep(0.1)
 
     def measure(self):
+        self._check_interrupted()
         with sweep.db.Writer(self._basedir) as w:
             w.metadata['comments'] = self._comments
             w.metadata['type'] = '0D'
@@ -250,6 +268,7 @@ class Station:
 
     @_interruptible
     def watch(self, delay: float=0.0, max_duration=None):
+        self._check_interrupted()
         with sweep.db.Writer(self._basedir) as w, self._plotter as p:
             self.logger.info(f'Starting watch with ID {w.id}')
             w.metadata['comments'] = self._comments
@@ -272,6 +291,7 @@ class Station:
 
                 if self.interrupt_requested:
                     self.logger.warning(f'ID {w.id} INTERRUPTED')
+                    self._interrupted = True
                     w.metadata['interrupted'] = True
                     break
 
@@ -290,6 +310,7 @@ class Station:
 
     @_interruptible
     def sweep(self, param, setpoints, delay: float=0.0):
+        self._check_interrupted()
         with sweep.db.Writer(self._basedir) as w, self._plotter as p:
             self.logger.info(f'Starting sweep with ID {w.id}')
             self.logger.info(f'Minimum duration {_sec_to_str(len(setpoints) * delay)}')
@@ -315,6 +336,7 @@ class Station:
 
                 if self.interrupt_requested:
                     self.logger.warning(f'ID {w.id} INTERRUPTED')
+                    self._interrupted = True
                     w.metadata['interrupted'] = True
                     break
 
@@ -334,6 +356,7 @@ class Station:
 
     @_interruptible
     def multisweep(self, params, setpointslist, delay: float=0.0):
+        self._check_interrupted()
         if not all(len(l) == len(setpointslist[0]) for l in setpointslist):
             raise ValueError('not all setpoint lists have same length!')
 
@@ -368,6 +391,7 @@ class Station:
 
                 if self.interrupt_requested:
                     self.logger.warning(f'ID {w.id} INTERRUPTED')
+                    self._interrupted = True
                     w.metadata['interrupted'] = True
                     break
 
@@ -387,6 +411,7 @@ class Station:
 
     @_interruptible
     def megasweep(self, slow_param, slow_v, fast_param, fast_v, slow_delay=0, fast_delay=0, **kwargs):
+        self._check_interrupted()
         with sweep.db.Writer(self._basedir) as w, self._plotter as p:
             self.logger.info(f'Starting megasweep with ID {w.id}')
             min_duration = len(slow_v) * len(fast_v) * fast_delay + len(slow_v) * slow_delay
@@ -406,14 +431,22 @@ class Station:
             p.set_cols(w.metadata['columns'])
             w.update_metadata()
 
-            for i,ov in enumerate(tqdm(slow_v)):
-                self.logger.debug(f'{i+1}/{len(slow_v)}')
+            for i, ov in enumerate(tqdm(slow_v)):
+                self.logger.debug(f'{i+1}/{len(slow_v)}: {ov}')
                 slow_param(ov)
                 if 'skip_initial_delay' in kwargs:
                     if kwargs['skip_initial_delay'] and i==0:
                         pass
                     else:
-                        time.sleep(slow_delay)
+                        self._interruptable_sleep(slow_delay)
+                else:
+                    self._interruptable_sleep(slow_delay)
+
+                if self.interrupt_requested:
+                    self.logger.warning(f'ID {w.id} INTERRUPTED')
+                    self._interrupted = True
+                    w.metadata['interrupted'] = True
+                    break
                         
                 for iv in tqdm(fast_v, position=1, leave=False):
                     fast_param(iv)
@@ -425,12 +458,16 @@ class Station:
 
                     if self.interrupt_requested:
                         self.logger.warning(f'ID {w.id} INTERRUPTED')
+                        self._interrupted = True
                         w.metadata['interrupted'] = True
                         break
 
                     self._run_run_afters()
 
                 if self.interrupt_requested:
+                    self.logger.warning(f'ID {w.id} INTERRUPTED')
+                    self._interrupted = True
+                    w.metadata['interrupted'] = True
                     break
 
             w.metadata['end_time'] = time.time()
@@ -448,6 +485,7 @@ class Station:
 
     @_interruptible
     def multimegasweep(self, slow_params, slow_v_list, fast_params, fast_v_list, slow_delay=0, fast_delay=0, **kwargs):
+        self._check_interrupted()
         if not all(len(l) == len(fast_v_list[0]) for l in fast_v_list):
             raise ValueError('not all fast axis setpoint lists have same length!')
         if not all(len(l) == len(slow_v_list[0]) for l in slow_v_list):
@@ -485,14 +523,22 @@ class Station:
             w.update_metadata()
 
             for i, slow_v in enumerate(tqdm(slow_vs)):
-                self.logger.debug(f'{i+1}/{len(slow_vs)}')
+                self.logger.debug(f'{i+1}/{len(slow_vs)}: {slow_v}')
                 for slow_param, ov in zip(slow_params, slow_v):
                     slow_param(ov)
                 if 'skip_initial_delay' in kwargs:
                     if kwargs['skip_initial_delay'] and i==0:
                         pass
                     else:
-                        time.sleep(slow_delay)
+                        self._interruptable_sleep(slow_delay)
+                else:
+                    self._interruptable_sleep(slow_delay)
+                    
+                if self.interrupt_requested:
+                    self.logger.warning(f'ID {w.id} INTERRUPTED')
+                    self._interrupted = True
+                    w.metadata['interrupted'] = True
+                    break
                     
                 for fast_v in tqdm(fast_vs, position=1, leave=False):
                     for fast_param, iv in zip(fast_params, fast_v):
@@ -505,12 +551,16 @@ class Station:
 
                     if self.interrupt_requested:
                         self.logger.warning(f'ID {w.id} INTERRUPTED')
+                        self._interrupted = True
                         w.metadata['interrupted'] = True
                         break
 
                     self._run_run_afters()
 
                 if self.interrupt_requested:
+                    self.logger.warning(f'ID {w.id} INTERRUPTED')
+                    self._interrupted = True
+                    w.metadata['interrupted'] = True
                     break
 
             w.metadata['end_time'] = time.time()
