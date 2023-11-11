@@ -5,7 +5,7 @@ import signal
 import time
 from typing import Callable, Dict, List, Union
 
-from tqdm.auto import tqdm
+from tqdm.auto  import tqdm
 import logging
 
 from IPython import display
@@ -167,6 +167,7 @@ class Station:
         self._comments = []
         self._interrupted = False
 
+
     def _init_logger(self):
         self.logger = logging.getLogger('sweep_log')
         file_handler = logging.FileHandler(filename=os.path.join(self._basedir, 'log.log'))
@@ -232,12 +233,15 @@ class Station:
     def reset_plots(self):
         self._plotter.reset_plots()
 
+
     def reset(self):
         self._interrupted = False
+
 
     def _check_interrupted(self):
         if self._interrupted:
             raise InterruptedError('Station was previously interrupted, either remake it or use station.reset()')
+
 
     def _interruptable_sleep(self, delay):
         if delay <= 10:
@@ -249,9 +253,21 @@ class Station:
                     break
                 time.sleep(0.1)
 
+    
+    def ramp(self, param, setpoint):
+        self.logger.info(f'Ramping {param.full_name}: {setpoint}')
+        param(setpoint)
+
+
+    def read(self, param, gain: float=1.0):
+        val = param()/gain
+        self.logger.info(f'Reading {param.full_name}: {val}')
+
+
     def measure(self):
         self._check_interrupted()
         with sweep.db.Writer(self._basedir) as w:
+            self.logger.info(f'Starting measure with ID {w.id}')
             w.metadata['comments'] = self._comments
             w.metadata['type'] = '0D'
             w.metadata['columns'] = ['time'] + self._col_names()
@@ -410,7 +426,8 @@ class Station:
 
 
     @_interruptible
-    def megasweep(self, slow_param, slow_v, fast_param, fast_v, slow_delay=0, fast_delay=0, **kwargs):
+    def megasweep(self, slow_param, slow_v, fast_param, fast_v, 
+                  slow_delay: float=0.0, fast_delay: float=0.0, init_delay=True):
         self._check_interrupted()
         with sweep.db.Writer(self._basedir) as w, self._plotter as p:
             self.logger.info(f'Starting megasweep with ID {w.id}')
@@ -431,14 +448,11 @@ class Station:
             p.set_cols(w.metadata['columns'])
             w.update_metadata()
 
-            for i, ov in enumerate(tqdm(slow_v)):
+            for i, ov in enumerate(tqdm(slow_v, position=0)):
                 self.logger.debug(f'{i+1}/{len(slow_v)}: {ov}')
                 slow_param(ov)
-                if 'skip_initial_delay' in kwargs:
-                    if kwargs['skip_initial_delay'] and i==0:
-                        pass
-                    else:
-                        self._interruptable_sleep(slow_delay)
+                if not init_delay and i==0:
+                    pass
                 else:
                     self._interruptable_sleep(slow_delay)
 
@@ -484,7 +498,8 @@ class Station:
 
 
     @_interruptible
-    def multimegasweep(self, slow_params, slow_v_list, fast_params, fast_v_list, slow_delay=0, fast_delay=0, **kwargs):
+    def multimegasweep(self, slow_params, slow_v_list, fast_params, fast_v_list, 
+                       slow_delay: float=0.0, fast_delay: float=0.0, init_delay=True):
         self._check_interrupted()
         if not all(len(l) == len(fast_v_list[0]) for l in fast_v_list):
             raise ValueError('not all fast axis setpoint lists have same length!')
@@ -522,15 +537,12 @@ class Station:
             p.set_cols(w.metadata['columns'])
             w.update_metadata()
 
-            for i, slow_v in enumerate(tqdm(slow_vs)):
+            for i, slow_v in enumerate(tqdm(slow_vs, position=0)):
                 self.logger.debug(f'{i+1}/{len(slow_vs)}: {slow_v}')
                 for slow_param, ov in zip(slow_params, slow_v):
                     slow_param(ov)
-                if 'skip_initial_delay' in kwargs:
-                    if kwargs['skip_initial_delay'] and i==0:
-                        pass
-                    else:
-                        self._interruptable_sleep(slow_delay)
+                if not init_delay and i==0:
+                    pass
                 else:
                     self._interruptable_sleep(slow_delay)
                     
