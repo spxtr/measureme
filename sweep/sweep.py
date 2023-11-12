@@ -1,6 +1,7 @@
 import dataclasses
 import functools
 import os
+import sys
 import signal
 import time
 from typing import Callable, Dict, List, Union
@@ -127,8 +128,7 @@ class SweepResult:
 def _interruptible(func):
     # We don't want to allow interrupts while communicating with
     # instruments. This checks for interrupts after measuring.
-    # TODO: Allow interrupting the time.sleep() somehow, and potentially
-    #       also the param(setpoint) if possible.
+    # TODO: Allow potentially the param(setpoint) if possible.
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         args[0].interrupt_requested = False
@@ -173,7 +173,7 @@ class Station:
         file_handler = logging.FileHandler(filename=os.path.join(self._basedir, 'log.log'))
         file_handler.setLevel(logging.DEBUG)
         
-        stream_handler = logging.StreamHandler()
+        stream_handler = logging.StreamHandler(sys.stdout)
         if self._verbose:
             stream_handler.setLevel(logging.INFO)
         else:
