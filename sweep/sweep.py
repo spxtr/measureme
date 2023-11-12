@@ -263,6 +263,11 @@ class Station:
         val = param()/gain
         self.logger.info(f'Reading {param.full_name}: {val}')
 
+    
+    def read_all(self):
+         self.logger.info(f'Reading all parameters:')
+         [self.read(p, gain=gain) for p, gain in self._params]
+
 
     def measure(self):
         self._check_interrupted()
