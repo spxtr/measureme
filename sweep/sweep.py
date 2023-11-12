@@ -166,7 +166,7 @@ class Station:
         self._run_afters = []
         self._comments = []
         self._interrupted = False
-
+        self.logger.debug('Station initialized')
 
     def _init_logger(self):
         self.logger = logging.getLogger('sweep_log')
@@ -220,6 +220,7 @@ class Station:
 
     def follow_param(self, param, gain: float=1.0):
         self._params.append((param, gain))
+        self.logger.debug(f'Follow paramter: {param.full_name}, gain: {gain}')
         return self
 
 
@@ -236,6 +237,7 @@ class Station:
 
     def reset(self):
         self._interrupted = False
+        self.logger.debug(f'Reseting station')
 
 
     def _check_interrupted(self):
@@ -244,7 +246,7 @@ class Station:
 
 
     def _interruptable_sleep(self, delay):
-        if delay <= 10:
+        if delay <= 2:
             time.sleep(delay)
         else:
             t0 = time.time()
@@ -334,6 +336,7 @@ class Station:
         self._check_interrupted()
         with sweep.db.Writer(self._basedir) as w, self._plotter as p:
             self.logger.info(f'Starting sweep with ID {w.id}')
+            self.logger.debug(f'Sweeping: {param.full_name}')
             self.logger.info(f'Minimum duration {_sec_to_str(len(setpoints) * delay)}')
 
             w.metadata['comments'] = self._comments
@@ -349,7 +352,7 @@ class Station:
 
             for setpoint in tqdm(setpoints):
                 param(setpoint)
-                time.sleep(delay) # TODO: Account for time spent in between?
+                time.sleep(delay)
                 self._run_run_befores()
                 data = [time.time(), setpoint] + self._measure()
                 w.add_point(data)
@@ -384,15 +387,15 @@ class Station:
         setpoints = [list(i) for i in zip(*setpointslist)]
         with sweep.db.Writer(self._basedir) as w, self._plotter as p:
             self.logger.info(f'Starting multisweep with ID {w.id}')
+            paramlist = []
+            for param in params:
+                paramlist.append(param.full_name)
+            self.logger.debug(f'Sweeping: {paramlist}')
             self.logger.info(f'Minimum duration {_sec_to_str(len(setpoints) * delay)}')
 
             w.metadata['comments'] = self._comments
             w.metadata['type'] = '1D'
             w.metadata['delay'] = delay
-
-            paramlist = []
-            for param in params:
-                paramlist.append(param.full_name)
             w.metadata['param'] = paramlist
             w.metadata['columns'] = ['time'] + [param for param in paramlist] + self._col_names()
             w.metadata['setpoints'] = [list(sps) for sps in setpointslist]
@@ -436,6 +439,7 @@ class Station:
         self._check_interrupted()
         with sweep.db.Writer(self._basedir) as w, self._plotter as p:
             self.logger.info(f'Starting megasweep with ID {w.id}')
+            self.logger.debug(f'Slow: {slow_param.full_name}, Fast: {fast_param.full_name}')
             min_duration = len(slow_v) * len(fast_v) * fast_delay + len(slow_v) * slow_delay
             self.logger.info(f'Minimum duration {_sec_to_str(min_duration)}')
 
@@ -454,7 +458,7 @@ class Station:
             w.update_metadata()
 
             for i, ov in enumerate(tqdm(slow_v, position=0)):
-                self.logger.debug(f'{i+1}/{len(slow_v)}: {ov}')
+                self.logger.debug(f'{i+1}/{len(slow_v)}: {slow_param.full_name }= {ov}')
                 slow_param(ov)
                 if not init_delay and i==0:
                     pass
@@ -516,14 +520,6 @@ class Station:
 
         with sweep.db.Writer(self._basedir) as w, self._plotter as p:
             self.logger.info(f'Starting multimegasweep with ID {w.id}')
-            min_duration = len(slow_vs) * len(fast_vs) * fast_delay + len(slow_vs) * slow_delay
-            self.logger.info(f'Minimum duration {_sec_to_str(min_duration)}')
-
-            w.metadata['comments'] = self._comments
-            w.metadata['type'] = '2D'
-            w.metadata['slow_delay'] = slow_delay
-            w.metadata['fast_delay'] = fast_delay
-
             slowparamlist = []
             for param in slow_params:
                 slowparamlist.append(param.full_name)
@@ -532,6 +528,14 @@ class Station:
             for param in fast_params:
                 fastparamlist.append(param.full_name)
 
+            self.logger.debug(f'Slows: {slowparamlist}, Fasts: {fastparamlist}')
+            min_duration = len(slow_vs) * len(fast_vs) * fast_delay + len(slow_vs) * slow_delay
+            self.logger.info(f'Minimum duration {_sec_to_str(min_duration)}')
+
+            w.metadata['comments'] = self._comments
+            w.metadata['type'] = '2D'
+            w.metadata['slow_delay'] = slow_delay
+            w.metadata['fast_delay'] = fast_delay
             w.metadata['slow_param'] = slowparamlist
             w.metadata['fast_param'] = fastparamlist
             w.metadata['columns'] = ['time'] + [param for param in slowparamlist] + [param for param in fastparamlist] + self._col_names()
@@ -543,7 +547,7 @@ class Station:
             w.update_metadata()
 
             for i, slow_v in enumerate(tqdm(slow_vs, position=0)):
-                self.logger.debug(f'{i+1}/{len(slow_vs)}: {slow_v}')
+                self.logger.debug(f'{i+1}/{len(slow_vs)}: {slowparamlist} = {slow_v}')
                 for slow_param, ov in zip(slow_params, slow_v):
                     slow_param(ov)
                 if not init_delay and i==0:
