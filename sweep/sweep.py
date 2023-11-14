@@ -259,7 +259,8 @@ class Station:
 
     
     def ramp(self, param, setpoint):
-        self.logger.info(f'Ramping {param.full_name}: {setpoint}')
+        cur_value = param()
+        self.logger.info(f'Ramping {param.full_name}: {cur_value} -> {setpoint}')
         param(setpoint)
 
 
