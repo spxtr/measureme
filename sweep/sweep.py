@@ -14,6 +14,8 @@ from IPython import display
 import sweep.db
 import sweep.plot
 
+import numpy as np
+
 
 BASEDIR = None
 def set_basedir(path):
@@ -169,7 +171,7 @@ class Station:
         self.logger.debug('Station initialized')
 
     def _init_logger(self):
-        self.logger = logging.getLogger('sweep_log')
+        self.logger = logging.getLogger('sweep_log'+str(np.random.randint(2**31)))
         file_handler = logging.FileHandler(filename=os.path.join(self._basedir, 'log.log'))
         file_handler.setLevel(logging.DEBUG)
         
