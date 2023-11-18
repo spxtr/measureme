@@ -194,6 +194,10 @@ class Station:
         self._comments.append(comment)
 
 
+    def log_comment(self, comment: str):
+        self.logger.info(f'Comment: {comment}')
+
+
     def register_run_before(self, fn, args):
         self._run_befores.append((fn, args))
 
