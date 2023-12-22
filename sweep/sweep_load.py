@@ -4,8 +4,7 @@ import numpy as np
 
 '''
 TODO:
-- make pload smarter about data type
-- Maybe make meta data contain function call type
+- allow pload to pass metadata to pload0d, pload1d, and pload2d?
 '''
 
 def load_meta(file_path: str, i: int):
@@ -19,6 +18,16 @@ def load(file_path: str, i: int):
         return np.loadtxt(path + r'data.tsv.gz')
     else:
         return np.loadtxt(path + r'data.tsv')
+    
+
+def pload(file_path: str, i: int):
+    meta = load_meta(file_path, i)
+    if meta['type'] == '0D':  
+        return pload0d(file_path, i)
+    elif meta['type'] == '1D':
+        return pload1d(file_path, i)
+    elif meta['type'] == '2D':
+        return pload2d(file_path, i)
     
 
 def pload0d(file_path: str, i: int):
