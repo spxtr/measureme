@@ -284,6 +284,7 @@ class Station:
             self.logger.info(f'Starting measure with ID {w.id}')
             w.metadata['comments'] = self._comments
             w.metadata['type'] = '0D'
+            w.metadata['function'] = 'measure'
             w.metadata['columns'] = ['time'] + self._col_names()
             t = time.time()
             w.metadata['time'] = t
@@ -303,6 +304,7 @@ class Station:
             self.logger.info(f'Starting watch with ID {w.id}')
             w.metadata['comments'] = self._comments
             w.metadata['type'] = '1D'
+            w.metadata['function'] = 'watch'
             w.metadata['delay'] = delay
             w.metadata['max_duration'] = max_duration
             w.metadata['columns'] = ['time'] + self._col_names()
@@ -348,6 +350,7 @@ class Station:
 
             w.metadata['comments'] = self._comments
             w.metadata['type'] = '1D'
+            w.metadata['function'] = 'sweep'
             w.metadata['delay'] = delay
             w.metadata['param'] = param.full_name
             w.metadata['columns'] = ['time', param.full_name] + self._col_names()
@@ -402,6 +405,7 @@ class Station:
 
             w.metadata['comments'] = self._comments
             w.metadata['type'] = '1D'
+            w.metadata['function'] = 'multisweep'
             w.metadata['delay'] = delay
             w.metadata['param'] = paramlist
             w.metadata['columns'] = ['time'] + [param for param in paramlist] + self._col_names()
@@ -452,6 +456,7 @@ class Station:
 
             w.metadata['comments'] = self._comments
             w.metadata['type'] = '2D'
+            w.metadata['function'] = 'megasweep'
             w.metadata['slow_delay'] = slow_delay
             w.metadata['fast_delay'] = fast_delay
             w.metadata['slow_param'] = slow_param.full_name
@@ -541,6 +546,7 @@ class Station:
 
             w.metadata['comments'] = self._comments
             w.metadata['type'] = '2D'
+            w.metadata['function'] = 'multimegasweep'
             w.metadata['slow_delay'] = slow_delay
             w.metadata['fast_delay'] = fast_delay
             w.metadata['slow_param'] = slowparamlist
