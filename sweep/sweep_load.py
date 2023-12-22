@@ -5,6 +5,7 @@ import numpy as np
 '''
 TODO:
 - allow pload to pass metadata to pload0d, pload1d, and pload2d?
+- data_dict returns metadata as well as data?
 '''
 
 def load_meta(file_path: str, i: int):
