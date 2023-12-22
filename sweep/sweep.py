@@ -472,19 +472,20 @@ class Station:
             for i, ov in enumerate(tqdm(slow_v, position=0)):
                 self.logger.debug(f'{i+1}/{len(slow_v)}: {slow_param.full_name }= {ov}')
                 slow_param(ov)
-                if not init_delay and i==0:
-                    pass
-                else:
-                    self._interruptable_sleep(slow_delay)
-
-                if self.interrupt_requested:
-                    self.logger.warning(f'ID {w.id} INTERRUPTED')
-                    self._interrupted = True
-                    w.metadata['interrupted'] = True
-                    break
                         
-                for iv in tqdm(fast_v, position=1, leave=False):
+                for j, iv in enumerate(tqdm(fast_v, position=1, leave=False)):
                     fast_param(iv)
+                    if not init_delay and i==0 and j==0:
+                        pass
+                    elif j==0:
+                        self._interruptable_sleep(slow_delay)
+
+                    if self.interrupt_requested:
+                        self.logger.warning(f'ID {w.id} INTERRUPTED')
+                        self._interrupted = True
+                        w.metadata['interrupted'] = True
+                        break
+
                     time.sleep(fast_delay)
                     self._run_run_befores()
                     data = [time.time(), ov, iv] + self._measure()
@@ -563,20 +564,22 @@ class Station:
                 self.logger.debug(f'{i+1}/{len(slow_vs)}: {slowparamlist} = {slow_v}')
                 for slow_param, ov in zip(slow_params, slow_v):
                     slow_param(ov)
-                if not init_delay and i==0:
-                    pass
-                else:
-                    self._interruptable_sleep(slow_delay)
                     
-                if self.interrupt_requested:
-                    self.logger.warning(f'ID {w.id} INTERRUPTED')
-                    self._interrupted = True
-                    w.metadata['interrupted'] = True
-                    break
-                    
-                for fast_v in tqdm(fast_vs, position=1, leave=False):
+                for j, fast_v in enumerate(tqdm(fast_vs, position=1, leave=False)):
                     for fast_param, iv in zip(fast_params, fast_v):
                         fast_param(iv)
+                        
+                    if not init_delay and i==0 and j==0:
+                        pass
+                    elif j==0:
+                        self._interruptable_sleep(slow_delay)
+
+                    if self.interrupt_requested:
+                        self.logger.warning(f'ID {w.id} INTERRUPTED')
+                        self._interrupted = True
+                        w.metadata['interrupted'] = True
+                        break
+
                     time.sleep(fast_delay)
                     self._run_run_befores()
                     data = [time.time()] + slow_v + fast_v + self._measure()
