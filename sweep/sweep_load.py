@@ -5,7 +5,6 @@ import numpy as np
 '''
 TODO:
 - make pload smarter about data type
-- Fix when trying to pload data without setpoints (eg watch)
 - Maybe make meta data contain function call type
 '''
 
@@ -20,6 +19,16 @@ def load(file_path: str, i: int):
         return np.loadtxt(path + r'data.tsv.gz')
     else:
         return np.loadtxt(path + r'data.tsv')
+    
+
+def pload0d(file_path: str, i: int):
+    data = load(file_path, i)
+    meta = load_meta(file_path, i)
+
+    data_dict = {}
+    for ind, col in enumerate(meta['columns']):
+        data_dict[col] = data[ind]
+    return data_dict
 
 
 def pload1d(file_path: str, i: int):
@@ -27,7 +36,8 @@ def pload1d(file_path: str, i: int):
     meta = load_meta(file_path, i)
 
     data_dict = {}
-    data_dict['xs'] = np.array(meta['setpoints'])
+    if 'setpoints' in meta:
+        data_dict['xs'] = np.array(meta['setpoints'])
     for ind, col in enumerate(meta['columns']):
         data_dict[col] = data[:, ind]
     return data_dict
