@@ -150,7 +150,7 @@ class Station:
     measure over time with watch.
     '''
 
-    def __init__(self, basedir: str=None, verbose: bool=True):
+    def __init__(self, measurement_config: dict={}, basedir: str=None, verbose: bool=True):
         '''Create a Station.'''
         global BASEDIR
         if basedir is not None:
@@ -163,6 +163,7 @@ class Station:
         self._verbose: bool = verbose
         self._init_logger()
         self._params: List = []
+        self._measurement_config: dict = measurement_config
         self._plotter = sweep.plot.Plotter()
         self._run_befores = []
         self._run_afters = []
@@ -286,6 +287,7 @@ class Station:
             w.metadata['type'] = '0D'
             w.metadata['function'] = 'measure'
             w.metadata['columns'] = ['time'] + self._col_names()
+            w.metadata['measurement_config'] = self._measurement_config
             t = time.time()
             w.metadata['time'] = t
             w.update_metadata()
@@ -308,6 +310,7 @@ class Station:
             w.metadata['delay'] = delay
             w.metadata['max_duration'] = max_duration
             w.metadata['columns'] = ['time'] + self._col_names()
+            w.metadata['measurement_config'] = self._measurement_config
             w.metadata['interrupted'] = False
             w.metadata['start_time'] = time.time()
             p.set_cols(w.metadata['columns'])
@@ -354,6 +357,7 @@ class Station:
             w.metadata['delay'] = delay
             w.metadata['param'] = param.full_name
             w.metadata['columns'] = ['time', param.full_name] + self._col_names()
+            w.metadata['measurement_config'] = self._measurement_config
             w.metadata['setpoints'] = list(setpoints)
             w.metadata['interrupted'] = False
             w.metadata['start_time'] = time.time()
@@ -409,6 +413,7 @@ class Station:
             w.metadata['delay'] = delay
             w.metadata['param'] = paramlist
             w.metadata['columns'] = ['time'] + [param for param in paramlist] + self._col_names()
+            w.metadata['measurement_config'] = self._measurement_config
             w.metadata['setpoints'] = [list(sps) for sps in setpointslist]
             w.metadata['interrupted'] = False
             w.metadata['start_time'] = time.time()
@@ -462,6 +467,7 @@ class Station:
             w.metadata['slow_param'] = slow_param.full_name
             w.metadata['fast_param'] = fast_param.full_name
             w.metadata['columns'] = ['time', slow_param.full_name, fast_param.full_name] + self._col_names()
+            w.metadata['measurement_config'] = self._measurement_config
             w.metadata['slow_setpoints'] = list(slow_v)
             w.metadata['fast_setpoints'] = list(fast_v)
             w.metadata['interrupted'] = False
@@ -553,6 +559,7 @@ class Station:
             w.metadata['slow_param'] = slowparamlist
             w.metadata['fast_param'] = fastparamlist
             w.metadata['columns'] = ['time'] + [param for param in slowparamlist] + [param for param in fastparamlist] + self._col_names()
+            w.metadata['measurement_config'] = self._measurement_config
             w.metadata['slow_setpoints'] = [list(sps) for sps in slow_v_list]
             w.metadata['fast_setpoints'] = [list(sps) for sps in fast_v_list]
             w.metadata['interrupted'] = False
