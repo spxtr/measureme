@@ -151,7 +151,9 @@ class Station:
     '''
 
     def __init__(self, measurement_config: dict={}, basedir: str=None, verbose: bool=True):
-        '''Create a Station.'''
+        '''Create a Station.
+        measurement_config: dict mapping hardware to measurements
+        '''
         global BASEDIR
         if basedir is not None:
             self._basedir: str = basedir
