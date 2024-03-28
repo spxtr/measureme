@@ -35,7 +35,8 @@ def pload0d(file_path: str, i: int):
     meta = load_meta(file_path, i)
 
     data_dict = {}
-    data_dict['measurement_config'] = meta['measurement_config']
+    if 'measurement_config' in meta:
+        data_dict['measurement_config'] = meta['measurement_config']
     for ind, col in enumerate(meta['columns']):
         data_dict[col] = data[ind]
     return data_dict
@@ -46,7 +47,8 @@ def pload1d(file_path: str, i: int):
     meta = load_meta(file_path, i)
 
     data_dict = {}
-    data_dict['measurement_config'] = meta['measurement_config']
+    if 'measurement_config' in meta:
+        data_dict['measurement_config'] = meta['measurement_config']
     if 'setpoints' in meta:
         data_dict['xs'] = np.array(meta['setpoints'])
     for ind, col in enumerate(meta['columns']):
@@ -59,7 +61,8 @@ def pload2d(file_path: str, i: int, pad_nan: bool=True):
     meta = load_meta(file_path, i)
 
     data_dict = {}
-    data_dict['measurement_config'] = meta['measurement_config']
+    if 'measurement_config' in meta:
+        data_dict['measurement_config'] = meta['measurement_config']
     data_dict['xs'] = np.array(meta['fast_setpoints'])
     data_dict['ys'] = np.array(meta['slow_setpoints'])
     lenx = np.shape(meta['fast_setpoints'])[-1]
