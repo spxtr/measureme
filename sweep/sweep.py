@@ -18,9 +18,7 @@ import numpy as np
 
 # TODO
 # async measurement (test first)
-# Check time spawning threads take
 # down sampling measurement
-# gate wrapper
 
 BASEDIR = None
 def set_basedir(path):
