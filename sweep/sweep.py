@@ -16,6 +16,9 @@ import sweep.plot
 
 import numpy as np
 
+# TODO
+# async measurement (test first)
+# down sampling measurement
 
 BASEDIR = None
 def set_basedir(path):
