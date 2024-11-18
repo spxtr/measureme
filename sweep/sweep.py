@@ -4,6 +4,8 @@ import os
 import sys
 import signal
 import time
+import concurrent
+from collections import defaultdict
 from typing import Callable, Dict, List, Union
 
 from tqdm.auto  import tqdm
@@ -17,7 +19,6 @@ import sweep.plot
 import numpy as np
 
 # TODO
-# async measurement (test first)
 # down sampling measurement
 
 BASEDIR = None
@@ -623,3 +624,36 @@ class Station:
         self.logger.info(f'Data saved in {w.datapath}')
 
         return SweepResult(self._basedir, w.id, w.metadata, w.datapath)
+
+class AsyncStation(Station):
+    def __init__(self, measurement_config: dict={}, basedir: str=None, verbose: bool=True):
+        self._ps_by_inst = defaultdict(list)
+        self._gains_by_inst = defaultdict(list)
+        self._params = []
+        super().__init__(measurement_config, basedir, verbose)
+
+    def follow_param(self, param, gain: float=1.0):
+        self._params.append((param, gain))
+        self.logger.debug(f'Follow parameter: {param.full_name}, gain: {gain}')
+        self._ps_by_inst[param.instrument].append(param)
+        self._gains_by_inst[param.instrument].append(gain)
+        return self
+
+    fp = follow_param
+
+    def _measure_by_inst(self, ps) -> List[float]:
+        return [p() for p in ps]
+
+    def _measure(self) -> List[float]:
+        futs_by_inst = {}
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(self._params)) as executor:
+            for i, ps in self._ps_by_inst.items():
+                futs_by_inst[i] = executor.submit(self._measure_by_inst, ps)
+
+        ret = {}
+        for future, ps in zip(futs_by_inst.values(), self._ps_by_inst.values()):
+            results = future.result()
+            for res, p in zip(results, ps):
+                ret[p] = res
+            
+        return [ret[p] / gain for p, gain in self._params]
