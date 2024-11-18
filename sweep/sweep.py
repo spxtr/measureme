@@ -626,11 +626,32 @@ class Station:
         return SweepResult(self._basedir, w.id, w.metadata, w.datapath)
 
 class AsyncStation(Station):
+    '''
+    AsyncStation is an asynchronous version of the Station class. It allows users to follow parameters
+    and perform measurements asynchronously without changing the I/O interface. Parameters are grouped
+    according to their instrument, so that a given instrument can be handled sychronously.
+
+    Attributes:
+        _ps_by_inst (defaultdict): A dictionary mapping instruments to their respective parameters.
+        _gains_by_inst (defaultdict): A dictionary mapping instruments to their respective gains.
+        _params (list): A list of tuples containing parameters and their corresponding gains.
+
+    Methods:
+        follow_param(param, gain=1.0):
+            Adds a parameter to be followed with an optional gain.
+            Alias: fp
+
+        _measure_by_inst(ps):
+            Measures the values of the given parameters.
+    '''
+
+
     def __init__(self, measurement_config: dict={}, basedir: str=None, verbose: bool=True):
         self._ps_by_inst = defaultdict(list)
         self._gains_by_inst = defaultdict(list)
         self._params = []
         super().__init__(measurement_config, basedir, verbose)
+
 
     def follow_param(self, param, gain: float=1.0):
         self._params.append((param, gain))
@@ -639,10 +660,13 @@ class AsyncStation(Station):
         self._gains_by_inst[param.instrument].append(gain)
         return self
 
+
     fp = follow_param
+
 
     def _measure_by_inst(self, ps) -> List[float]:
         return [p() for p in ps]
+
 
     def _measure(self) -> List[float]:
         futs_by_inst = {}
