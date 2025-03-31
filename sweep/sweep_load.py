@@ -71,7 +71,7 @@ def pload2d(file_path: str, i: int, pad_nan: bool=True):
         d = data[:, ind]
         if pad_nan:
             data_dict[col] = np.pad(d, (0, lenx*leny - len(d)), 
-                                    'constant', constant_values=(np.NAN, np.NAN)).reshape((leny, lenx))
+                                    'constant', constant_values=(np.nan, np.nan)).reshape((leny, lenx))
         else:
             data_dict[col] = np.pad(d, (0, lenx*leny - len(d))).reshape((leny, lenx))
     return data_dict
