@@ -3,6 +3,7 @@ import numpy as np
 '''
 TODO:
 - sweep needs some way of storing verticies within the data file
+- Make using raterizer a bit easier somehow
 '''
 
 def rasterize(vertices, nx, ny, fast_axis, rev_x=False, rev_y=False):
