@@ -84,7 +84,7 @@ def _rasterized_indices(vertices, xs_mat, ys_mat):
     is_raster = []
     js_raster = []
     for i in range(len(xs_mat)):
-        for j in range(len(ys_mat)):
+        for j in range(len(ys_mat[i])):
             inside = _point_in_polygon((xs_mat[i, j], ys_mat[i, j]), vertices)
             if inside:
                 is_raster.append(i)
