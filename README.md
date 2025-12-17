@@ -1,3 +1,8 @@
+# ALERT!
+
+Future development of measureme will be done in the [Sharpelab repository](https://github.com/sharpelab/measureme)
+
+
 # MeasureMe
 
 This is what I use to orchestrate measurements. It builds on Python 3, Jupyter
